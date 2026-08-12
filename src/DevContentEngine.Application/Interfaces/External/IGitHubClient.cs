@@ -8,4 +8,9 @@ public interface IGitHubClient
         string username,
         DateTime sinceUtc,
         CancellationToken cancellationToken = default);
+
+    Task<GitHubRepositoryDetail> GetRepositoryDetailAsync(
+        string owner,
+        string name,
+        CancellationToken cancellationToken = default);
 }

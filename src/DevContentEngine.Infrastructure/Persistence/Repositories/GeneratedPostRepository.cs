@@ -47,4 +47,20 @@ public sealed class GeneratedPostRepository : RepositoryBase<GeneratedPost>, IGe
             .Take(count)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyDictionary<Guid, DateTime>> GetLastRepoHighlightByRepositoryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var query =
+            from post in DbContext.GeneratedPosts
+            where post.Origin == ContentOrigin.RepoHighlight
+            join idea in DbContext.ContentIdeas on post.ContentIdeaId equals idea.Id
+            where idea.RelatedRepositoryId != null
+            group post by idea.RelatedRepositoryId!.Value into repositoryGroup
+            select new { RepositoryId = repositoryGroup.Key, LastHighlightedAt = repositoryGroup.Max(post => post.CreatedAt) };
+
+        var results = await query.ToListAsync(cancellationToken);
+
+        return results.ToDictionary(result => result.RepositoryId, result => result.LastHighlightedAt);
+    }
 }

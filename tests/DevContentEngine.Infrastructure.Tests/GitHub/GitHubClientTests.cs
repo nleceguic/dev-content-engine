@@ -235,4 +235,110 @@ public class GitHubClientTests : IDisposable
         var exception = await act.Should().ThrowAsync<GitHubIntegrationException>();
         exception.Which.Message.Should().Contain("Could not resolve to a User");
     }
+
+    private const string RepositoryDetailResponseBody = """
+        {
+          "data": {
+            "repository": {
+              "description": "SaaS de gestion de pedidos para restaurantes.",
+              "primaryLanguage": { "name": "C#" },
+              "repositoryTopics": {
+                "nodes": [
+                  { "topic": { "name": "clean-architecture" } },
+                  { "topic": { "name": "dotnet" } }
+                ]
+              },
+              "readme": { "text": "# Rush Order\n\nClean Architecture, .NET 9 y CQRS." },
+              "readmeLower": null,
+              "rootTree": {
+                "entries": [
+                  { "name": "src", "type": "tree" },
+                  { "name": "tests", "type": "tree" },
+                  { "name": "README.md", "type": "blob" }
+                ]
+              }
+            }
+          }
+        }
+        """;
+
+    [Fact]
+    public async Task GetRepositoryDetailAsync_parses_description_language_topics_readme_and_top_level_folders()
+    {
+        _server
+            .Given(Request.Create().WithPath("/graphql").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithHeader("X-RateLimit-Limit", "5000")
+                .WithHeader("X-RateLimit-Remaining", "4999")
+                .WithBody(RepositoryDetailResponseBody));
+
+        var client = CreateClient();
+
+        var result = await client.GetRepositoryDetailAsync("nleceguic", "rush-order");
+
+        result.Owner.Should().Be("nleceguic");
+        result.Name.Should().Be("rush-order");
+        result.Description.Should().Be("SaaS de gestion de pedidos para restaurantes.");
+        result.PrimaryLanguage.Should().Be("C#");
+        result.Topics.Should().BeEquivalentTo(["clean-architecture", "dotnet"]);
+        result.ReadmeExcerpt.Should().Be("# Rush Order\n\nClean Architecture, .NET 9 y CQRS.");
+        result.TopLevelFolders.Should().BeEquivalentTo(["src", "tests"]);
+    }
+
+    [Fact]
+    public async Task GetRepositoryDetailAsync_falls_back_to_lowercase_readme_when_README_md_is_missing()
+    {
+        const string body = """
+            {
+              "data": {
+                "repository": {
+                  "description": null,
+                  "primaryLanguage": null,
+                  "repositoryTopics": { "nodes": [] },
+                  "readme": null,
+                  "readmeLower": { "text": "lowercase readme content" },
+                  "rootTree": { "entries": [] }
+                }
+              }
+            }
+            """;
+
+        _server
+            .Given(Request.Create().WithPath("/graphql").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(body));
+
+        var client = CreateClient();
+
+        var result = await client.GetRepositoryDetailAsync("nleceguic", "rush-order");
+
+        result.ReadmeExcerpt.Should().Be("lowercase readme content");
+        result.PrimaryLanguage.Should().BeNull();
+        result.Topics.Should().BeEmpty();
+        result.TopLevelFolders.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetRepositoryDetailAsync_throws_GitHubIntegrationException_when_the_repository_does_not_exist()
+    {
+        const string body = """{"data": {"repository": null}, "errors": [{"message": "Could not resolve to a Repository."}]}""";
+
+        _server
+            .Given(Request.Create().WithPath("/graphql").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(body));
+
+        var client = CreateClient();
+
+        var act = async () => await client.GetRepositoryDetailAsync("nleceguic", "does-not-exist");
+
+        var exception = await act.Should().ThrowAsync<GitHubIntegrationException>();
+        exception.Which.Message.Should().Contain("Could not resolve to a Repository");
+    }
 }

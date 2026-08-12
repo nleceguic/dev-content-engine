@@ -178,6 +178,28 @@ public class ContentValidatorTests
     }
 
     [Fact]
+    public void Validate_fails_for_RepoHighlight_origin_when_no_source_is_a_valid_URL()
+    {
+        var validator = new ContentValidator();
+
+        var result = validator.Validate(Draft(sources: ["not-a-url"]), ContentOrigin.RepoHighlight, [], ReferenceDate);
+
+        result.IsValid.Should().BeFalse();
+        result.FailedRules.Should().Contain(rule => rule.Contains("repo-highlight-originated post must include at least one source with a valid URL"));
+    }
+
+    [Fact]
+    public void Validate_passes_the_source_rule_for_RepoHighlight_origin_when_a_source_is_a_valid_URL()
+    {
+        var validator = new ContentValidator();
+
+        var result = validator.Validate(
+            Draft(sources: ["https://github.com/nleceguic/rush-order"]), ContentOrigin.RepoHighlight, [], ReferenceDate);
+
+        result.FailedRules.Should().NotContain(rule => rule.Contains("valid URL"));
+    }
+
+    [Fact]
     public void Validate_adds_a_warning_but_stays_valid_when_topics_overlap_significantly_with_a_recent_post()
     {
         var validator = new ContentValidator();

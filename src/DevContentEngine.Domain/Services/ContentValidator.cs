@@ -118,6 +118,11 @@ public sealed class ContentValidator
         {
             failedRules.Add("A trend-originated post must include at least one source with a valid URL.");
         }
+
+        if (origin == ContentOrigin.RepoHighlight && !sources.Any(IsValidHttpUrl))
+        {
+            failedRules.Add("A repo-highlight-originated post must include at least one source with a valid URL.");
+        }
     }
 
     private void ValidateTopicRepetition(

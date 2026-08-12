@@ -70,7 +70,7 @@ public class LlmContentGenerationServiceTests
             Now,
             ContentPath.GitHubPath);
 
-        return new ContentGenerationRequest(contentIdea, [activity], [repository], null, ["sha-1,sha-2"], [], Now);
+        return new ContentGenerationRequest(contentIdea, [activity], [repository], null, null, ["sha-1,sha-2"], [], Now);
     }
 
     private static GeneratorResponsePayload ValidDraft(string source = "sha-1,sha-2")

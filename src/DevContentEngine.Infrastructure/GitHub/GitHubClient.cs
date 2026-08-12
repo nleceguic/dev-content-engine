@@ -11,6 +11,8 @@ namespace DevContentEngine.Infrastructure.GitHub;
 
 public sealed class GitHubClient : IGitHubClient
 {
+    private const int ReadmeExcerptMaxLength = 4000;
+
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
     private const string UserActivityQuery = """
@@ -57,6 +59,29 @@ public sealed class GitHubClient : IGitHubClient
                     }
                   }
                 }
+              }
+            }
+          }
+        }
+        """;
+
+    private const string RepositoryDetailQuery = """
+        query RepositoryDetail($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            description
+            primaryLanguage { name }
+            repositoryTopics(first: 20) {
+              nodes { topic { name } }
+            }
+            readme: object(expression: "HEAD:README.md") {
+              ... on Blob { text }
+            }
+            readmeLower: object(expression: "HEAD:readme.md") {
+              ... on Blob { text }
+            }
+            rootTree: object(expression: "HEAD:") {
+              ... on Tree {
+                entries { name type }
               }
             }
           }
@@ -136,6 +161,68 @@ public sealed class GitHubClient : IGitHubClient
                 ?? throw new GitHubIntegrationException($"GitHub GraphQL API returned no data for user '{username}'.");
 
             return MapToUserActivity(user, sinceUtc);
+        }
+    }
+
+    public async Task<GitHubRepositoryDetail> GetRepositoryDetailAsync(
+        string owner,
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var requestPayload = new
+        {
+            query = RepositoryDetailQuery,
+            variables = new { owner, name }
+        };
+
+        HttpResponseMessage response;
+
+        try
+        {
+            response = await _httpClient.PostAsJsonAsync("graphql", requestPayload, SerializerOptions, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or TimeoutException)
+        {
+            throw new GitHubIntegrationException($"Failed to reach the GitHub GraphQL API: {ex.Message}", ex);
+        }
+
+        using (response)
+        {
+            WarnIfRateLimitIsLow(response);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await SafeReadBodyAsync(response, cancellationToken);
+                throw new GitHubIntegrationException(
+                    $"GitHub GraphQL API returned {(int)response.StatusCode} ({response.StatusCode}): {body}");
+            }
+
+            GraphQlResponse<RepositoryDetailData>? payload;
+
+            try
+            {
+                payload = await response.Content.ReadFromJsonAsync<GraphQlResponse<RepositoryDetailData>>(
+                    SerializerOptions,
+                    cancellationToken);
+            }
+            catch (JsonException ex)
+            {
+                throw new GitHubIntegrationException("GitHub GraphQL API returned a response that could not be parsed.", ex);
+            }
+
+            if (payload?.Errors is { Count: > 0 })
+            {
+                var errorMessage = string.Join("; ", payload.Errors.Select(error => error.Message));
+                throw new GitHubIntegrationException($"GitHub GraphQL API returned errors: {errorMessage}");
+            }
+
+            var repository = payload?.Data?.Repository
+                ?? throw new GitHubIntegrationException($"GitHub GraphQL API returned no data for repository '{owner}/{name}'.");
+
+            return MapToRepositoryDetail(owner, name, repository);
         }
     }
 
@@ -242,5 +329,42 @@ public sealed class GitHubClient : IGitHubClient
         }
 
         return new GitHubUserActivity(newRepositories, commits, pullRequests, issues);
+    }
+
+    private static GitHubRepositoryDetail MapToRepositoryDetail(string owner, string name, RepositoryDetailNode repository)
+    {
+        var readmeText = repository.Readme?.Text ?? repository.ReadmeLower?.Text;
+
+        var topics = repository.RepositoryTopics.Nodes
+            .Select(node => node.Topic.Name)
+            .ToList();
+
+        var topLevelFolders = (repository.RootTree?.Entries ?? [])
+            .Where(entry => entry.Type == "tree")
+            .Select(entry => entry.Name)
+            .ToList();
+
+        return new GitHubRepositoryDetail(
+            owner,
+            name,
+            repository.Description,
+            TruncateReadme(readmeText),
+            topics,
+            repository.PrimaryLanguage?.Name,
+            topLevelFolders);
+    }
+
+    private static string? TruncateReadme(string? readmeText)
+    {
+        if (string.IsNullOrWhiteSpace(readmeText))
+        {
+            return null;
+        }
+
+        var trimmed = readmeText.Trim();
+
+        return trimmed.Length <= ReadmeExcerptMaxLength
+            ? trimmed
+            : trimmed[..ReadmeExcerptMaxLength] + "…";
     }
 }

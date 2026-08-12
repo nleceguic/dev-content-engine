@@ -17,6 +17,7 @@ public sealed class DraftReadyEventHandler : INotificationHandler<DomainEventNot
     private readonly IGeneratedPostRepository _generatedPostRepository;
     private readonly IContentIdeaRepository _contentIdeaRepository;
     private readonly ITrendRepository _trendRepository;
+    private readonly IGitHubRepositoryRepository _repositoryRepository;
     private readonly INotifier _notifier;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<DraftReadyEventHandler> _logger;
@@ -25,6 +26,7 @@ public sealed class DraftReadyEventHandler : INotificationHandler<DomainEventNot
         IGeneratedPostRepository generatedPostRepository,
         IContentIdeaRepository contentIdeaRepository,
         ITrendRepository trendRepository,
+        IGitHubRepositoryRepository repositoryRepository,
         INotifier notifier,
         IDateTimeProvider dateTimeProvider,
         ILogger<DraftReadyEventHandler> logger)
@@ -32,6 +34,7 @@ public sealed class DraftReadyEventHandler : INotificationHandler<DomainEventNot
         _generatedPostRepository = generatedPostRepository;
         _contentIdeaRepository = contentIdeaRepository;
         _trendRepository = trendRepository;
+        _repositoryRepository = repositoryRepository;
         _notifier = notifier;
         _dateTimeProvider = dateTimeProvider;
         _logger = logger;
@@ -86,6 +89,16 @@ public sealed class DraftReadyEventHandler : INotificationHandler<DomainEventNot
             return trend is null
                 ? ("Trend", $"Tendencia relevante (score de actividad {contentIdea.ActivityScore:F1}).")
                 : ($"Trend/{trend.Source}", $"Tendencia relevante: {trend.Title}.");
+        }
+
+        if (contentIdea.Origin == ContentOrigin.RepoHighlight && contentIdea.RelatedRepositoryId is { } repositoryId)
+        {
+            var repository = await _repositoryRepository.GetByIdAsync(repositoryId, cancellationToken);
+            var repositoryName = repository?.FullName ?? "repositorio desconocido";
+
+            return (
+                $"Repo Highlight / {repositoryName}",
+                "Sin actividad reciente relevante — destacando una característica existente de este proyecto.");
         }
 
         return ("GitHub", $"Actividad de GitHub con score {contentIdea.ActivityScore:F1}, por encima del umbral configurado.");

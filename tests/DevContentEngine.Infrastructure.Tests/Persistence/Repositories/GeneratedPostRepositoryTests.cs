@@ -55,6 +55,36 @@ public class GeneratedPostRepositoryTests : IAsyncLifetime
         return (idea, prompt);
     }
 
+    private static (ContentIdea Idea, PromptVersion Prompt) RepoHighlightSupportingEntities(DateTime now, Guid repositoryId)
+    {
+        var idea = new ContentIdea(
+            Guid.NewGuid(),
+            ContentOrigin.RepoHighlight,
+            0m,
+            [],
+            relatedTrendId: null,
+            now,
+            ContentPath.RepoHighlightPath,
+            relatedRepositoryId: repositoryId);
+        var prompt = new PromptVersion(Guid.NewGuid(), PromptRole.Generator, "Generate a repo highlight post", now);
+
+        return (idea, prompt);
+    }
+
+    private static GeneratedPost RepoHighlightPost(DateTime createdAt, ContentIdea contentIdea, PromptVersion prompt) =>
+        new(
+            Guid.NewGuid(),
+            contentIdea.Id,
+            "Hook",
+            "Body",
+            "Conclusion",
+            "Cta",
+            ["#dotnet"],
+            ["https://github.com/owner/repo"],
+            ContentOrigin.RepoHighlight,
+            prompt.Id,
+            createdAt);
+
     [Fact]
     public async Task GetRecentPostsAsync_returns_only_posts_created_within_the_last_N_days()
     {
@@ -168,5 +198,60 @@ public class GeneratedPostRepositoryTests : IAsyncLifetime
 
         result.Select(p => p.Id).Should().ContainInOrder(newest.Id, middle.Id);
         result.Should().NotContain(p => p.Id == oldest.Id);
+    }
+
+    [Fact]
+    public async Task GetLastRepoHighlightByRepositoryAsync_returns_the_most_recent_highlight_per_repository()
+    {
+        var repositoryA = new GitHubRepository(Guid.NewGuid(), "nleceguic", "repo-a", Now.AddDays(-100));
+        var repositoryB = new GitHubRepository(Guid.NewGuid(), "nleceguic", "repo-b", Now.AddDays(-100));
+
+        var (ideaAOld, promptA) = RepoHighlightSupportingEntities(Now.AddDays(-40), repositoryA.Id);
+        var (ideaANew, _) = RepoHighlightSupportingEntities(Now.AddDays(-10), repositoryA.Id);
+        var (ideaB, _) = RepoHighlightSupportingEntities(Now.AddDays(-5), repositoryB.Id);
+
+        var oldHighlightA = RepoHighlightPost(Now.AddDays(-40), ideaAOld, promptA);
+        var newHighlightA = RepoHighlightPost(Now.AddDays(-10), ideaANew, promptA);
+        var highlightB = RepoHighlightPost(Now.AddDays(-5), ideaB, promptA);
+
+        await using (var context = CreateContext())
+        {
+            context.GitHubRepositories.AddRange(repositoryA, repositoryB);
+            context.ContentIdeas.AddRange(ideaAOld, ideaANew, ideaB);
+            context.PromptVersions.Add(promptA);
+            context.GeneratedPosts.AddRange(oldHighlightA, newHighlightA, highlightB);
+            await context.SaveChangesAsync();
+        }
+
+        await using var readContext = CreateContext();
+        var repository = new GeneratedPostRepository(readContext, new FixedDateTimeProvider(Now));
+
+        var result = await repository.GetLastRepoHighlightByRepositoryAsync();
+
+        result.Should().HaveCount(2);
+        result[repositoryA.Id].Should().Be(Now.AddDays(-10));
+        result[repositoryB.Id].Should().Be(Now.AddDays(-5));
+    }
+
+    [Fact]
+    public async Task GetLastRepoHighlightByRepositoryAsync_ignores_posts_from_other_origins()
+    {
+        var (githubIdea, githubPrompt) = SupportingEntities(Now);
+        var githubPost = Post(Now, githubIdea, githubPrompt);
+
+        await using (var context = CreateContext())
+        {
+            context.ContentIdeas.Add(githubIdea);
+            context.PromptVersions.Add(githubPrompt);
+            context.GeneratedPosts.Add(githubPost);
+            await context.SaveChangesAsync();
+        }
+
+        await using var readContext = CreateContext();
+        var repository = new GeneratedPostRepository(readContext, new FixedDateTimeProvider(Now));
+
+        var result = await repository.GetLastRepoHighlightByRepositoryAsync();
+
+        result.Should().BeEmpty();
     }
 }

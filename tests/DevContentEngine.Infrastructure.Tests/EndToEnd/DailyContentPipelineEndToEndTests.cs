@@ -147,4 +147,125 @@ public class DailyContentPipelineEndToEndTests : IAsyncLifetime
             n => n.NotifyDraftReadyAsync(It.IsAny<DraftReadyNotification>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_falls_back_to_RepoHighlightPath_and_persists_a_successful_run_when_activity_is_weak_and_no_trends_exist()
+    {
+        const string username = "nleceguic";
+        var now = new DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc);
+
+        var rawActivity = new GitHubUserActivity([], [], [], []);
+
+        var gitHubClient = new Mock<IGitHubClient>();
+        gitHubClient
+            .Setup(client => client.GetUserActivityAsync(username, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rawActivity);
+
+        var repositoryDetail = new GitHubRepositoryDetail(
+            username,
+            "rush-order",
+            "SaaS de gestion de pedidos para restaurantes.",
+            "Clean Architecture, .NET 9 y CQRS.",
+            ["clean-architecture"],
+            "C#",
+            ["src", "tests"]);
+
+        gitHubClient
+            .Setup(client => client.GetRepositoryDetailAsync(username, "rush-order", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(repositoryDetail);
+
+        var trendSource = new Mock<ITrendSource>();
+        trendSource
+            .Setup(source => source.GetTrendsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TrendCandidate>());
+
+        const string hook = "Podría haber dejado el proyecto como un monolito. En su lugar, separé los bounded contexts.";
+        const string conclusion = "Diseñar para escalar desde el día uno cambia cómo pienso cada decisión técnica.";
+        const string cta = "¿Cómo lo harías tú? Y si buscas un perfil así, hablemos.";
+        var body = new string('a', Math.Max(1, 1000 - hook.Length - conclusion.Length - cta.Length));
+        var validDraft = new GeneratorResponsePayload(
+            hook, body, conclusion, cta, ["#dotnet", "#cleanarchitecture"], ["https://github.com/nleceguic/rush-order"]);
+
+        var llmProvider = new Mock<ILlmProvider>();
+        llmProvider
+            .Setup(provider => provider.GenerateStructuredAsync<GeneratorResponsePayload>(
+                It.IsAny<string>(), It.IsAny<object>(), It.IsAny<LlmGenerationOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(validDraft);
+
+        var notifier = new Mock<INotifier>();
+
+        var connectionString = _postgres.GetConnectionString();
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Default"] = connectionString,
+                ["GitHub:Token"] = "test-token",
+                ["Llm:ApiKey"] = "test-key",
+                ["Telegram:BotToken"] = "test-bot-token",
+                ["Telegram:ChatId"] = "12345"
+            })
+            .Build();
+
+        var seededRepository = new DevContentEngine.Domain.Entities.GitHubRepository(Guid.NewGuid(), username, "rush-order", now.AddDays(-90));
+
+        await using (var seedContext = new DevContentEngineDbContext(new DbContextOptionsBuilder<DevContentEngineDbContext>()
+            .UseNpgsql(connectionString)
+            .Options))
+        {
+            seedContext.GitHubRepositories.Add(seededRepository);
+            await seedContext.SaveChangesAsync();
+        }
+
+        var services = new ServiceCollection();
+
+        services.AddApplication();
+        services.AddLogging();
+        services.AddInfrastructure(configuration);
+
+        services.RemoveAll<IGitHubClient>();
+        services.AddSingleton(gitHubClient.Object);
+        services.RemoveAll<ITrendSource>();
+        services.AddSingleton(trendSource.Object);
+        services.RemoveAll<ILlmProvider>();
+        services.AddSingleton(llmProvider.Object);
+        services.RemoveAll<INotifier>();
+        services.AddSingleton(notifier.Object);
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+
+        var result = await sender.Send(new GenerateDailyContentCommand(username));
+
+        result.ErrorMessage.Should().BeNull();
+        result.Status.Should().Be(GenerationRunStatus.Success);
+        result.GeneratedPostId.Should().NotBeNull();
+
+        await using var readContext = new DevContentEngineDbContext(new DbContextOptionsBuilder<DevContentEngineDbContext>()
+            .UseNpgsql(connectionString)
+            .Options);
+
+        var persistedPost = await readContext.GeneratedPosts.SingleAsync(post => post.Id == result.GeneratedPostId);
+
+        persistedPost.Status.Should().Be(GeneratedPostStatus.Draft);
+        persistedPost.Origin.Should().Be(ContentOrigin.RepoHighlight);
+        persistedPost.Sources.Should().Contain("https://github.com/nleceguic/rush-order");
+
+        var persistedIdea = await readContext.ContentIdeas.SingleAsync(idea => idea.Id == persistedPost.ContentIdeaId);
+        persistedIdea.Origin.Should().Be(ContentOrigin.RepoHighlight);
+        persistedIdea.RelatedRepositoryId.Should().Be(seededRepository.Id);
+
+        var persistedRun = await readContext.GenerationRuns.SingleAsync(run => run.Id == result.GenerationRunId);
+        persistedRun.Status.Should().Be(GenerationRunStatus.Success);
+        persistedRun.ChosenPath.Should().Be(ContentPath.RepoHighlightPath);
+        persistedRun.ResultingPostId.Should().Be(result.GeneratedPostId);
+
+        notifier.Verify(
+            n => n.NotifyDraftReadyAsync(
+                It.Is<DraftReadyNotification>(notification => notification.Origin.Contains("Repo Highlight")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

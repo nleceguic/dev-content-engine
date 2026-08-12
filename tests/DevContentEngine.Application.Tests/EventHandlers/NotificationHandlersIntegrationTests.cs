@@ -6,6 +6,7 @@ using DevContentEngine.Application.Tests.TestHelpers;
 using DevContentEngine.Domain.Entities;
 using DevContentEngine.Domain.Enums;
 using DevContentEngine.Domain.Events;
+using FluentAssertions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -20,6 +21,7 @@ public class NotificationHandlersIntegrationTests
     private readonly Mock<IGeneratedPostRepository> _generatedPostRepository = new();
     private readonly Mock<IContentIdeaRepository> _contentIdeaRepository = new();
     private readonly Mock<ITrendRepository> _trendRepository = new();
+    private readonly Mock<IGitHubRepositoryRepository> _repositoryRepository = new();
     private readonly Mock<IDateTimeProvider> _dateTimeProvider = new();
 
     private IPublisher BuildPublisher()
@@ -33,6 +35,7 @@ public class NotificationHandlersIntegrationTests
         services.AddSingleton(_generatedPostRepository.Object);
         services.AddSingleton(_contentIdeaRepository.Object);
         services.AddSingleton(_trendRepository.Object);
+        services.AddSingleton(_repositoryRepository.Object);
         services.AddSingleton(_dateTimeProvider.Object);
 
         return services.BuildServiceProvider().GetRequiredService<IPublisher>();
@@ -70,6 +73,45 @@ public class NotificationHandlersIntegrationTests
         _notifier.Verify(
             notifier => notifier.NotifyNoContentApprovedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Publishing_a_DraftReadyEvent_for_a_RepoHighlight_post_reports_the_repo_highlight_origin_and_reason()
+    {
+        var post = GeneratedPostTestFactory.Create();
+        var repository = new GitHubRepository(Guid.NewGuid(), "nleceguic", "rush-order", Now.AddDays(-90));
+        var contentIdea = new ContentIdea(
+            post.ContentIdeaId,
+            ContentOrigin.RepoHighlight,
+            activityScore: 0m,
+            relatedActivityIds: [],
+            relatedTrendId: null,
+            Now,
+            ContentPath.RepoHighlightPath,
+            relatedRepositoryId: repository.Id);
+
+        _generatedPostRepository.Setup(repository => repository.GetByIdAsync(post.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(post);
+        _contentIdeaRepository.Setup(repository => repository.GetByIdAsync(post.ContentIdeaId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(contentIdea);
+        _repositoryRepository.Setup(repo => repo.GetByIdAsync(repository.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(repository);
+        _dateTimeProvider.Setup(provider => provider.UtcNow).Returns(Now);
+
+        var publisher = BuildPublisher();
+
+        DraftReadyNotification? capturedNotification = null;
+        _notifier
+            .Setup(notifier => notifier.NotifyDraftReadyAsync(It.IsAny<DraftReadyNotification>(), It.IsAny<CancellationToken>()))
+            .Callback<DraftReadyNotification, CancellationToken>((notification, _) => capturedNotification = notification)
+            .Returns(Task.CompletedTask);
+
+        await publisher.Publish(new DomainEventNotification<DraftReadyEvent>(new DraftReadyEvent(post.Id)));
+
+        capturedNotification.Should().NotBeNull();
+        capturedNotification!.Origin.Should().Be("Repo Highlight / nleceguic/rush-order");
+        capturedNotification.Reason.Should().Be(
+            "Sin actividad reciente relevante — destacando una característica existente de este proyecto.");
     }
 
     [Fact]

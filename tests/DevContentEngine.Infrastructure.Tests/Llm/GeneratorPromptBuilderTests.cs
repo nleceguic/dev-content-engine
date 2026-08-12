@@ -1,3 +1,4 @@
+using DevContentEngine.Application.Interfaces.External.Models;
 using DevContentEngine.Domain.Entities;
 using DevContentEngine.Domain.Enums;
 using DevContentEngine.Domain.Services;
@@ -103,6 +104,7 @@ public class GeneratorPromptBuilderTests
             [activity],
             [repository],
             null,
+            null,
             ["sha-1"],
             [],
             "Sigo compaginando esto con mi trabajo actual.");
@@ -120,11 +122,85 @@ public class GeneratorPromptBuilderTests
             [activity],
             [repository],
             null,
+            null,
             ["sha-1"],
             [],
             null);
 
         payload.ContextoPersonal.Should().BeNull();
+    }
+
+    [Fact]
+    public void BuildRepoHighlightSystemPrompt_bans_flat_announcements_and_roadmap_talk()
+    {
+        var prompt = GeneratorPromptBuilder.BuildRepoHighlightSystemPrompt();
+
+        prompt.Should().Contain("Acabo de subir a GitHub el proyecto que");
+        prompt.Should().Contain("roadmap, planes futuros");
+        prompt.Should().Contain("ya implementada");
+    }
+
+    [Fact]
+    public void BuildRepoHighlightSystemPrompt_reuses_the_same_structural_style_rules()
+    {
+        var prompt = GeneratorPromptBuilder.BuildRepoHighlightSystemPrompt();
+
+        prompt.Should().Contain("tensión");
+        prompt.Should().Contain("🔹");
+        prompt.Should().Contain("primer comentario");
+        prompt.Should().Contain("máximo 1 o 2 emojis");
+        prompt.Should().Contain("oportunidades laborales");
+        prompt.Should().Contain("hook, cuerpo, conclusion, cta, hashtags, fuentes");
+    }
+
+    [Fact]
+    public void BuildRepoHighlightSystemPrompt_requires_the_repository_URL_from_enlaces_to_be_echoed_in_fuentes()
+    {
+        var prompt = GeneratorPromptBuilder.BuildRepoHighlightSystemPrompt();
+
+        prompt.Should().Contain("Debe incluir SIEMPRE, sin excepción, cada URL presente en \"enlaces\"");
+    }
+
+    [Fact]
+    public void BuildPayload_for_RepoHighlight_includes_repository_name_description_readme_and_stack()
+    {
+        var repository = new GitHubRepository(Guid.NewGuid(), "nleceguic", "rush-order", Now);
+
+        var contentIdea = new ContentIdea(
+            Guid.NewGuid(),
+            ContentOrigin.RepoHighlight,
+            0m,
+            [],
+            relatedTrendId: null,
+            Now,
+            ContentPath.RepoHighlightPath,
+            relatedRepositoryId: repository.Id);
+
+        var repositoryDetail = new GitHubRepositoryDetail(
+            "nleceguic",
+            "rush-order",
+            "SaaS de pedidos para restaurantes",
+            "Este proyecto usa Clean Architecture y multi-tenancy con RLS en PostgreSQL.",
+            ["clean-architecture", "multi-tenancy"],
+            "C#",
+            ["src", "tests"]);
+
+        var payload = GeneratorPromptBuilder.BuildPayload(
+            contentIdea,
+            [],
+            [repository],
+            null,
+            repositoryDetail,
+            ["https://github.com/nleceguic/rush-order"],
+            [],
+            null);
+
+        payload.Origen.Should().Be("RepoHighlight");
+        payload.Proyecto.Should().Be("nleceguic/rush-order");
+        payload.Descripcion.Should().Be("SaaS de pedidos para restaurantes");
+        payload.Readme.Should().Be("Este proyecto usa Clean Architecture y multi-tenancy con RLS en PostgreSQL.");
+        payload.Tecnologias.Should().Contain(["C#", "clean-architecture", "multi-tenancy"]);
+        payload.Enlaces.Should().Contain("https://github.com/nleceguic/rush-order");
     }
 
     private static (ContentIdea ContentIdea, GitHubActivity Activity, GitHubRepository Repository) CreateGitHubFixture()

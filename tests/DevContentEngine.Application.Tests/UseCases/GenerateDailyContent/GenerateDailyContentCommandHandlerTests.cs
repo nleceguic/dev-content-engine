@@ -1,4 +1,5 @@
 using DevContentEngine.Application.Common;
+using DevContentEngine.Application.Interfaces;
 using DevContentEngine.Application.Interfaces.External;
 using DevContentEngine.Application.Interfaces.External.Models;
 using DevContentEngine.Application.Interfaces.Persistence;
@@ -19,6 +20,7 @@ public class GenerateDailyContentCommandHandlerTests
 
     private readonly Mock<IGitHubClient> _gitHubClient = new();
     private readonly Mock<ITrendSource> _trendSource = new();
+    private readonly Mock<IRepoHighlightSelector> _repoHighlightSelector = new();
     private readonly Mock<IContentGenerationService> _contentGenerationService = new();
     private readonly Mock<IGitHubRepositoryRepository> _repositoryRepository = new();
     private readonly Mock<IGitHubActivityRepository> _activityRepository = new();
@@ -42,6 +44,10 @@ public class GenerateDailyContentCommandHandlerTests
             .Setup(repository => repository.GetByOwnerAndNameAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((GitHubRepository?)null);
 
+        _repoHighlightSelector
+            .Setup(selector => selector.SelectAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GitHubRepository?)null);
+
         _generatedPostRepository
             .Setup(repository => repository.GetRecentPostsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<GeneratedPost>());
@@ -60,6 +66,7 @@ public class GenerateDailyContentCommandHandlerTests
         return new GenerateDailyContentCommandHandler(
             _gitHubClient.Object,
             _trendSource.Object,
+            _repoHighlightSelector.Object,
             _contentGenerationService.Object,
             _repositoryRepository.Object,
             _activityRepository.Object,
@@ -238,7 +245,7 @@ public class GenerateDailyContentCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_returns_NoContentGenerated_with_a_clear_reason_and_persists_the_run_when_TrendPath_has_no_trends()
+    public async Task Handle_returns_NoContentGenerated_with_a_clear_reason_when_neither_Trend_nor_RepoHighlight_produce_a_result()
     {
         _gitHubClient
             .Setup(client => client.GetUserActivityAsync("nleceguic", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
@@ -248,6 +255,10 @@ public class GenerateDailyContentCommandHandlerTests
             .Setup(source => source.GetTrendsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TrendCandidate>());
 
+        _repoHighlightSelector
+            .Setup(selector => selector.SelectAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GitHubRepository?)null);
+
         var capturedRun = CaptureGenerationRun();
 
         var handler = CreateHandler();
@@ -256,19 +267,85 @@ public class GenerateDailyContentCommandHandlerTests
 
         var result = await act.Should().NotThrowAsync();
 
+        const string expectedReason =
+            "No trend candidates were found for the configured keywords, and no eligible repository " +
+            "was available for a repo highlight.";
+
         result.Subject.Status.Should().Be(GenerationRunStatus.NoContentGenerated);
         result.Subject.GeneratedPostId.Should().BeNull();
-        result.Subject.ErrorMessage.Should().Be("No trend candidates were found for the configured keywords.");
+        result.Subject.ErrorMessage.Should().Be(expectedReason);
 
         capturedRun.Value.Should().NotBeNull();
         capturedRun.Value!.Status.Should().Be(GenerationRunStatus.NoContentGenerated);
-        capturedRun.Value.ErrorMessage.Should().Be("No trend candidates were found for the configured keywords.");
+        capturedRun.Value.ErrorMessage.Should().Be(expectedReason);
         capturedRun.Value.ResultingPostId.Should().BeNull();
 
         _contentGenerationService.Verify(
             service => service.GenerateAsync(It.IsAny<ContentGenerationRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _generatedPostRepository.Verify(repository => repository.AddAsync(It.IsAny<GeneratedPost>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_chooses_RepoHighlightPath_and_persists_a_successful_run_when_activity_is_weak_and_no_trends_exist()
+    {
+        var repository = new GitHubRepository(Guid.NewGuid(), "nleceguic", "rush-order", Now.AddDays(-90));
+
+        _gitHubClient
+            .Setup(client => client.GetUserActivityAsync("nleceguic", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(EmptyActivity());
+
+        _trendSource
+            .Setup(source => source.GetTrendsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TrendCandidate>());
+
+        _repoHighlightSelector
+            .Setup(selector => selector.SelectAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(repository);
+
+        var repositoryDetail = new GitHubRepositoryDetail(
+            repository.Owner,
+            repository.Name,
+            "SaaS de pedidos para restaurantes",
+            "Clean Architecture, .NET 9 y CQRS.",
+            ["clean-architecture"],
+            "C#",
+            ["src", "tests"]);
+
+        _gitHubClient
+            .Setup(client => client.GetRepositoryDetailAsync(repository.Owner, repository.Name, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(repositoryDetail);
+
+        var capturedRun = CaptureGenerationRun();
+        ContentGenerationRequest? capturedRequest = null;
+
+        _contentGenerationService
+            .Setup(service => service.GenerateAsync(It.IsAny<ContentGenerationRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<ContentGenerationRequest, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync(new GeneratedContentResult("Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], GeneratorPromptVersionId));
+
+        var handler = CreateHandler();
+
+        var result = await handler.Handle(new GenerateDailyContentCommand("nleceguic"), CancellationToken.None);
+
+        result.Status.Should().Be(GenerationRunStatus.Success);
+        result.GeneratedPostId.Should().NotBeNull();
+        result.ErrorMessage.Should().BeNull();
+
+        capturedRun.Value.Should().NotBeNull();
+        capturedRun.Value!.ChosenPath.Should().Be(ContentPath.RepoHighlightPath);
+        capturedRun.Value.ResultingPostId.Should().Be(result.GeneratedPostId);
+
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.ContentIdea.Origin.Should().Be(ContentOrigin.RepoHighlight);
+        capturedRequest.ContentIdea.RelatedRepositoryId.Should().Be(repository.Id);
+        capturedRequest.RepositoryDetail.Should().Be(repositoryDetail);
+        capturedRequest.Repositories.Should().ContainSingle(r => r.Id == repository.Id);
+        capturedRequest.SourceReferences.Should().ContainSingle(source => source.Contains(repository.FullName));
+
+        _contentIdeaRepository.Verify(repository => repository.AddAsync(It.IsAny<ContentIdea>(), It.IsAny<CancellationToken>()), Times.Once);
+        _generatedPostRepository.Verify(repository => repository.AddAsync(It.IsAny<GeneratedPost>(), It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 

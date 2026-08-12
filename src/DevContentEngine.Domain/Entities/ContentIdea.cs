@@ -12,6 +12,7 @@ public sealed class ContentIdea : Entity
     public decimal ActivityScore { get; }
     public IReadOnlyCollection<Guid> RelatedActivityIds => _relatedActivityIds.AsReadOnly();
     public Guid? RelatedTrendId { get; }
+    public Guid? RelatedRepositoryId { get; }
     public DateTime CreatedAt { get; }
     public ContentPath ChosenPath { get; }
 
@@ -26,7 +27,8 @@ public sealed class ContentIdea : Entity
         IEnumerable<Guid> relatedActivityIds,
         Guid? relatedTrendId,
         DateTime createdAt,
-        ContentPath chosenPath)
+        ContentPath chosenPath,
+        Guid? relatedRepositoryId = null)
         : base(id)
     {
         if (!Enum.IsDefined(origin))
@@ -41,13 +43,24 @@ public sealed class ContentIdea : Entity
         if (origin == ContentOrigin.Trend && relatedTrendId is null)
             throw new ArgumentException("An idea originated from a trend must reference that trend.", nameof(relatedTrendId));
 
-        if (origin == ContentOrigin.GitHub && relatedTrendId is not null)
-            throw new ArgumentException("An idea originated from GitHub activity cannot reference a trend.", nameof(relatedTrendId));
+        if (origin != ContentOrigin.Trend && relatedTrendId is not null)
+            throw new ArgumentException("Only an idea originated from a trend can reference a trend.", nameof(relatedTrendId));
+
+        if (origin == ContentOrigin.RepoHighlight && relatedRepositoryId is null)
+            throw new ArgumentException(
+                "An idea originated from a repo highlight must reference that repository.",
+                nameof(relatedRepositoryId));
+
+        if (origin != ContentOrigin.RepoHighlight && relatedRepositoryId is not null)
+            throw new ArgumentException(
+                "Only an idea originated from a repo highlight can reference a repository.",
+                nameof(relatedRepositoryId));
 
         Origin = origin;
         ActivityScore = activityScore;
         _relatedActivityIds = relatedActivityIds?.ToList() ?? [];
         RelatedTrendId = relatedTrendId;
+        RelatedRepositoryId = relatedRepositoryId;
         CreatedAt = createdAt;
         ChosenPath = chosenPath;
 

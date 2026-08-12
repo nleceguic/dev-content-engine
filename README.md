@@ -31,7 +31,9 @@ ejecución es siempre un borrador que llega a Telegram para que lo revises, edit
 - Cada día, ingesta la actividad real de un usuario de GitHub del día anterior (commits, pull
   requests, issues, releases) vía la API GraphQL de GitHub.
 - Puntúa esa actividad y decide de forma determinista si hay suficiente sustancia para un post
-  basado en el trabajo del día, o si conviene apoyarse en una tendencia externa del sector.
+  basado en el trabajo del día, si conviene apoyarse en una tendencia externa del sector, o —si
+  tampoco hay tendencia disponible— destacar una característica ya implementada de uno de tus
+  repositorios existentes ("repo highlight").
 - Genera un borrador con un LLM (Anthropic Claude), a partir únicamente de los datos reales
   capturados — no de un prompt abierto.
 - Valida ese borrador contra un conjunto de reglas deterministas (longitud, hashtags, frases
@@ -46,9 +48,9 @@ ejecución es siempre un borrador que llega a Telegram para que lo revises, edit
   negocio, no un detalle de configuración pendiente: cada ejecución produce, como mucho, un
   borrador en estado `Draft`.
 - **No inventa actividad, métricas ni logros.** Todo lo que aparece en un borrador debe ser
-  trazable a datos reales capturados por el pipeline; si no hay suficiente actividad real ni
-  ninguna tendencia válida, la ejecución se marca explícitamente como "sin contenido generado" en
-  lugar de rellenar el hueco con algo plausible.
+  trazable a datos reales capturados por el pipeline; si no hay suficiente actividad real, ninguna
+  tendencia válida, ni ningún repositorio elegible para un "repo highlight", la ejecución se marca
+  explícitamente como "sin contenido generado" en lugar de rellenar el hueco con algo plausible.
 - **No decide por ti.** Aprobar, editar o descartar cada borrador es siempre una acción manual.
 
 ## Arquitectura
@@ -126,7 +128,7 @@ revisión manual"]
    - máximo 5 hashtags, y solo si están en una whitelist de tecnologías conocida;
    - ninguna frase prohibida o de tipo *clickbait*;
    - **trazabilidad de fuentes obligatoria**: el borrador debe citar al menos una fuente real, y si
-     el origen es una tendencia externa, esa fuente debe ser una URL válida;
+     el origen es una tendencia externa o un repo highlight, esa fuente debe ser una URL válida;
    - repetición de tema frente a posts recientes, como aviso (no bloqueante en el MVP).
 
    Si falla cualquiera de las reglas bloqueantes, el borrador se descarta sin llegar a persistirse
@@ -224,7 +226,10 @@ Infrastructure).
 ### MVP — implementado
 
 - Ingesta diaria de actividad de GitHub (commits, pull requests, issues, releases) vía GraphQL.
-- Scoring de actividad y selección determinista entre camino "GitHub" y camino "tendencia".
+- Scoring de actividad y selección determinista entre camino "GitHub", camino "tendencia" y, como
+  último recurso antes de "sin contenido generado", camino "repo highlight" (destaca una
+  característica ya implementada de un repositorio existente que no se haya destacado en los
+  últimos 30 días).
 - Generación con Claude a partir de datos reales, con la Capa 1 de validación determinista siempre
   activa.
 - Revisor LLM (Capa 2) ya implementado, disponible tras un feature flag.

@@ -1,4 +1,6 @@
 using DevContentEngine.Application.Common;
+using DevContentEngine.Application.Interfaces;
+using DevContentEngine.Application.Services;
 using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +20,7 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
+        services.AddScoped<IRepoHighlightSelector, RepoHighlightSelector>();
 
         return services;
     }

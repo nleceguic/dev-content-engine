@@ -15,6 +15,7 @@ public sealed class PostPreviewImageGenerator
 
     private static readonly Color GitHubBackground = Color.ParseHex("1F6FEB");
     private static readonly Color TrendBackground = Color.ParseHex("D29922");
+    private static readonly Color RepoHighlightBackground = Color.ParseHex("8250DF");
     private static readonly Color TextColor = Color.White;
 
     private static readonly string[] CandidateFontFamilies =
@@ -26,9 +27,11 @@ public sealed class PostPreviewImageGenerator
         ArgumentException.ThrowIfNullOrWhiteSpace(origin);
         ArgumentException.ThrowIfNullOrWhiteSpace(hook);
 
-        var backgroundColor = origin.Contains("GitHub", StringComparison.OrdinalIgnoreCase)
-            ? GitHubBackground
-            : TrendBackground;
+        var backgroundColor = origin.Contains("Repo Highlight", StringComparison.OrdinalIgnoreCase)
+            ? RepoHighlightBackground
+            : origin.Contains("GitHub", StringComparison.OrdinalIgnoreCase)
+                ? GitHubBackground
+                : TrendBackground;
 
         using var image = new Image<Rgba32>(Width, Height);
 

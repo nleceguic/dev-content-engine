@@ -26,6 +26,8 @@ public sealed class ContentIdeaConfiguration : EntityConfigurationBase<ContentId
 
         builder.Property(idea => idea.RelatedTrendId);
 
+        builder.Property(idea => idea.RelatedRepositoryId);
+
         builder.Property(idea => idea.CreatedAt)
             .IsRequired();
 
@@ -37,6 +39,12 @@ public sealed class ContentIdeaConfiguration : EntityConfigurationBase<ContentId
         builder.HasOne<Trend>()
             .WithMany()
             .HasForeignKey(idea => idea.RelatedTrendId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
+
+        builder.HasOne<GitHubRepository>()
+            .WithMany()
+            .HasForeignKey(idea => idea.RelatedRepositoryId)
             .OnDelete(DeleteBehavior.SetNull)
             .IsRequired(false);
     }

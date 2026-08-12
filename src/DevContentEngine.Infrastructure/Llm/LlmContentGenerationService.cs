@@ -47,7 +47,10 @@ public sealed class LlmContentGenerationService : IContentGenerationService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var generatorSystemPrompt = GeneratorPromptBuilder.BuildSystemPrompt();
+        var generatorSystemPrompt = request.ContentIdea.Origin == ContentOrigin.RepoHighlight
+            ? GeneratorPromptBuilder.BuildRepoHighlightSystemPrompt()
+            : GeneratorPromptBuilder.BuildSystemPrompt();
+
         var generatorPromptVersion = await ResolveOrCreatePromptVersionAsync(
             PromptRole.Generator,
             generatorSystemPrompt,
@@ -58,6 +61,7 @@ public sealed class LlmContentGenerationService : IContentGenerationService
             request.Activities,
             request.Repositories,
             request.Trend,
+            request.RepositoryDetail,
             request.SourceReferences,
             request.RecentPosts,
             _options.ContextoPersonal);

@@ -8,6 +8,7 @@ public sealed record ContentGenerationRequest(
     IReadOnlyCollection<GitHubActivity> Activities,
     IReadOnlyCollection<GitHubRepository> Repositories,
     Trend? Trend,
+    GitHubRepositoryDetail? RepositoryDetail,
     IReadOnlyCollection<string> SourceReferences,
     IReadOnlyCollection<RecentPostTopics> RecentPosts,
     DateTime ReferenceDate);

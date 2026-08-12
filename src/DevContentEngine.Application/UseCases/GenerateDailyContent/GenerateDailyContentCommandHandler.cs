@@ -1,4 +1,5 @@
 using DevContentEngine.Application.Common;
+using DevContentEngine.Application.Interfaces;
 using DevContentEngine.Application.Interfaces.External;
 using DevContentEngine.Application.Interfaces.External.Models;
 using DevContentEngine.Application.Interfaces.Persistence;
@@ -18,6 +19,7 @@ public sealed class GenerateDailyContentCommandHandler : IRequestHandler<Generat
 
     private readonly IGitHubClient _gitHubClient;
     private readonly ITrendSource _trendSource;
+    private readonly IRepoHighlightSelector _repoHighlightSelector;
     private readonly IContentGenerationService _contentGenerationService;
     private readonly IGitHubRepositoryRepository _repositoryRepository;
     private readonly IGitHubActivityRepository _activityRepository;
@@ -36,6 +38,7 @@ public sealed class GenerateDailyContentCommandHandler : IRequestHandler<Generat
     public GenerateDailyContentCommandHandler(
         IGitHubClient gitHubClient,
         ITrendSource trendSource,
+        IRepoHighlightSelector repoHighlightSelector,
         IContentGenerationService contentGenerationService,
         IGitHubRepositoryRepository repositoryRepository,
         IGitHubActivityRepository activityRepository,
@@ -53,6 +56,7 @@ public sealed class GenerateDailyContentCommandHandler : IRequestHandler<Generat
     {
         _gitHubClient = gitHubClient;
         _trendSource = trendSource;
+        _repoHighlightSelector = repoHighlightSelector;
         _contentGenerationService = contentGenerationService;
         _repositoryRepository = repositoryRepository;
         _activityRepository = activityRepository;
@@ -125,8 +129,11 @@ public sealed class GenerateDailyContentCommandHandler : IRequestHandler<Generat
             ContentIdea contentIdea;
             IReadOnlyCollection<string> sourceReferences;
             Trend? trend = null;
+            GitHubRepositoryDetail? repositoryDetail = null;
+            IReadOnlyCollection<GitHubRepository> contentRepositories = repositories.Values.ToList();
+            var chosenPath = scoreResult.ChosenPath;
 
-            if (scoreResult.ChosenPath == ContentPath.GitHubPath)
+            if (chosenPath == ContentPath.GitHubPath)
             {
                 contentIdea = new ContentIdea(
                     Guid.NewGuid(),
@@ -143,37 +150,65 @@ public sealed class GenerateDailyContentCommandHandler : IRequestHandler<Generat
             {
                 var trendCandidates = await _trendSource.GetTrendsAsync(TrendKeywords, cancellationToken);
 
-                if (trendCandidates.Count == 0)
+                if (trendCandidates.Count > 0)
                 {
-                    return await CompleteAsNoContentAsync(
-                        generationRun,
-                        "No trend candidates were found for the configured keywords.",
-                        trackedEntities,
-                        cancellationToken);
+                    var selectedCandidate = trendCandidates.First();
+                    trend = new Trend(
+                        Guid.NewGuid(),
+                        selectedCandidate.Title,
+                        selectedCandidate.Source,
+                        selectedCandidate.Url,
+                        selectedCandidate.PublishedAt,
+                        relevanceScore: 1.0m);
+
+                    await _trendRepository.AddAsync(trend, cancellationToken);
+                    trackedEntities.Add(trend);
+
+                    contentIdea = new ContentIdea(
+                        Guid.NewGuid(),
+                        ContentOrigin.Trend,
+                        scoreResult.Score,
+                        relatedActivityIds: [],
+                        relatedTrendId: trend.Id,
+                        startedAt,
+                        ContentPath.TrendPath);
+
+                    sourceReferences = [trend.Url];
                 }
+                else
+                {
+                    var highlightedRepository = await _repoHighlightSelector.SelectAsync(cancellationToken);
 
-                var selectedCandidate = trendCandidates.First();
-                trend = new Trend(
-                    Guid.NewGuid(),
-                    selectedCandidate.Title,
-                    selectedCandidate.Source,
-                    selectedCandidate.Url,
-                    selectedCandidate.PublishedAt,
-                    relevanceScore: 1.0m);
+                    if (highlightedRepository is null)
+                    {
+                        return await CompleteAsNoContentAsync(
+                            generationRun,
+                            "No trend candidates were found for the configured keywords, and no eligible repository " +
+                            "was available for a repo highlight.",
+                            trackedEntities,
+                            cancellationToken);
+                    }
 
-                await _trendRepository.AddAsync(trend, cancellationToken);
-                trackedEntities.Add(trend);
+                    repositoryDetail = await _gitHubClient.GetRepositoryDetailAsync(
+                        highlightedRepository.Owner,
+                        highlightedRepository.Name,
+                        cancellationToken);
 
-                contentIdea = new ContentIdea(
-                    Guid.NewGuid(),
-                    ContentOrigin.Trend,
-                    scoreResult.Score,
-                    relatedActivityIds: [],
-                    relatedTrendId: trend.Id,
-                    startedAt,
-                    ContentPath.TrendPath);
+                    contentRepositories = [highlightedRepository];
+                    chosenPath = ContentPath.RepoHighlightPath;
 
-                sourceReferences = [trend.Url];
+                    contentIdea = new ContentIdea(
+                        Guid.NewGuid(),
+                        ContentOrigin.RepoHighlight,
+                        scoreResult.Score,
+                        relatedActivityIds: [],
+                        relatedTrendId: null,
+                        startedAt,
+                        ContentPath.RepoHighlightPath,
+                        relatedRepositoryId: highlightedRepository.Id);
+
+                    sourceReferences = [$"https://github.com/{highlightedRepository.FullName}"];
+                }
             }
 
             await _contentIdeaRepository.AddAsync(contentIdea, cancellationToken);
@@ -183,8 +218,9 @@ public sealed class GenerateDailyContentCommandHandler : IRequestHandler<Generat
                 new ContentGenerationRequest(
                     contentIdea,
                     activities,
-                    repositories.Values.ToList(),
+                    contentRepositories,
                     trend,
+                    repositoryDetail,
                     sourceReferences,
                     recentPostTopics,
                     startedAt),
@@ -215,7 +251,7 @@ public sealed class GenerateDailyContentCommandHandler : IRequestHandler<Generat
             await _generatedPostRepository.AddAsync(generatedPost, cancellationToken);
             trackedEntities.Add(generatedPost);
 
-            generationRun.CompleteSuccessfully(scoreResult.ChosenPath, generatedPost.Id, _dateTimeProvider.UtcNow);
+            generationRun.CompleteSuccessfully(chosenPath, generatedPost.Id, _dateTimeProvider.UtcNow);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _domainEventDispatcher.DispatchAndClearEventsAsync(trackedEntities, cancellationToken);
