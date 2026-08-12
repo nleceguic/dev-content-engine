@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f4f4f5"/>
+  <rect x="24" y="24" width="1152" height="582" rx="16" fill="none" stroke="#9ca3af" stroke-width="4" stroke-dasharray="14 10"/>
+
+  <g transform="translate(600 220)">
+    <rect x="-70" y="-46" width="140" height="92" rx="14" fill="none" stroke="#4b5563" stroke-width="6"/>
+    <rect x="-95" y="-30" width="30" height="24" rx="6" fill="none" stroke="#4b5563" stroke-width="6"/>
+    <circle cx="0" cy="2" r="30" fill="none" stroke="#4b5563" stroke-width="6"/>
+    <circle cx="34" cy="-26" r="6" fill="#4b5563"/>
+  </g>
+
+  <text x="600" y="330" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="40" font-weight="700" fill="#1f2937">
+    📸 SCREENSHOT PENDIENTE
+  </text>
+  <text x="600" y="386" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="26" fill="#374151">
+    Dashboard de Hangfire — http://localhost:8081/hangfire
+  </text>
+  <text x="600" y="424" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="#6b7280">
+    Vista con el job recurrente "generate-daily-content" programado a
+  </text>
+  <text x="600" y="454" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="#6b7280">
+    las 08:00 Europe/Madrid, y su historial de ejecuciones
+  </text>
+  <text x="600" y="510" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#9ca3af">
+    Reemplaza este archivo por docs/images/hangfire-dashboard-placeholder.svg
+  </text>
+</svg>

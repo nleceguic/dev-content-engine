@@ -126,7 +126,15 @@ revisión manual"]
    que el modelo "rellene" con algo que no se le haya pasado.
 2. **Capa 1 — validación determinista, siempre activa** (`ContentValidator`, sin LLM de por medio):
    - longitud total entre 700 y 1.600 caracteres;
-   - máximo 5 hashtags, y solo si están en una whitelist de tecnologías conocida;
+   - máximo 5 hashtags, y solo si coinciden con una whitelist de tecnologías conocida
+     (`DefaultTechnologyHashtagWhitelist`). El match es por *substring*, no exacto: un hashtag pasa
+     si **contiene** una palabra de la whitelist (`#DotNetCore`, `#PostgreSQLMigrations` y
+     `#LLMIntegration` pasan porque contienen `dotnet`, `postgresql` y `llm`), así no hay que listar
+     a mano cada variante compuesta que un LLM pueda generar de una misma tecnología ya permitida.
+     La whitelist cubre tanto tecnologías concretas (`dotnet`, `postgresql`, `docker`,
+     `cleanarchitecture`, `cqrs`...) como hashtags de carrera/producto que ya aparecen en mis posts
+     reales (`backenddeveloper`, `juniordeveloper`, `softwarearchitecture`, `saas`,
+     `multitenancy`, `opentowork`...);
    - ninguna frase prohibida o de tipo *clickbait*;
    - **trazabilidad de fuentes obligatoria**: el borrador debe citar al menos una fuente real, y si
      el origen es una tendencia externa o un repo highlight, esa fuente debe ser una URL válida;
@@ -150,6 +158,20 @@ revisión manual"]
    — nunca se fuerza un post solo por no dejar la ejecución "vacía".
 5. **El resultado final sigue siendo un borrador.** Pasar ambas capas no significa "publicado": es
    el punto de partida para que un humano decida.
+
+### Así se ve en la práctica
+
+<p align="center">
+  <img src="docs/images/telegram-notification-placeholder.svg" alt="Notificación de Telegram con el borrador y el prompt de imagen" width="600">
+</p>
+
+El mensaje que llega a Telegram incluye el origen (`GitHub` / `Trend` / `Repo Highlight`), el motivo
+exacto de esa elección, el post completo (hook, cuerpo, conclusión, CTA) y, al final, el prompt de
+imagen en un bloque de código listo para copiar:
+
+<p align="center">
+  <img src="docs/images/generated-cover-image-placeholder.svg" alt="Imagen de portada generada a partir del prompt de imagen" width="600">
+</p>
 
 ## Stack
 
@@ -206,6 +228,11 @@ aplicar las migraciones de EF Core).
      ahí también se puede disparar el job diario manualmente en lugar de esperar a las 08:00.
 
    Para parar todo: `docker compose down` (añade `-v` si además quieres borrar el volumen de datos).
+
+<p align="center">
+  <img src="docs/images/api-generation-runs-placeholder.svg" alt="Panel de la Api con las últimas ejecuciones" width="480">
+  <img src="docs/images/hangfire-dashboard-placeholder.svg" alt="Dashboard de Hangfire con el job diario programado" width="480">
+</p>
 
 ## Tests
 
