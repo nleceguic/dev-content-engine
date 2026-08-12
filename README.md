@@ -40,7 +40,8 @@ ejecución es siempre un borrador que llega a Telegram para que lo revises, edit
   prohibidas, trazabilidad de fuentes) antes de darlo por bueno.
 - Registra cada ejecución (éxito, fallo, o "sin contenido generado") en una tabla de auditoría
   append-only, con el motivo exacto cuando no hay post.
-- Envía el borrador a Telegram con una imagen de previsualización para que el usuario decida.
+- Envía el borrador a Telegram junto con un prompt de imagen (en inglés, listo para pegar en un
+  generador de imágenes por IA) para que el usuario decida.
 
 **Qué NO hace:**
 
@@ -129,6 +130,12 @@ revisión manual"]
    - ninguna frase prohibida o de tipo *clickbait*;
    - **trazabilidad de fuentes obligatoria**: el borrador debe citar al menos una fuente real, y si
      el origen es una tendencia externa o un repo highlight, esa fuente debe ser una URL válida;
+   - **descripción de diagrama obligatoria**: el mismo LLM que genera el post produce, en la misma
+     llamada, una breve descripción en inglés de qué debería mostrar un diagrama de arquitectura,
+     basada únicamente en lo que dice el propio post — nunca vacía, nunca con componentes inventados.
+     `ImagePromptGenerator` la combina de forma determinista con el título y la tecnología principal
+     del post en una plantilla de prompt de imagen (en inglés) que se adjunta a la notificación de
+     Telegram, lista para pegar en un generador de imágenes por IA;
    - repetición de tema frente a posts recientes, como aviso (no bloqueante en el MVP).
 
    Si falla cualquiera de las reglas bloqueantes, el borrador se descarta sin llegar a persistirse
@@ -153,7 +160,7 @@ revisión manual"]
 | Jobs en segundo plano | Hangfire (con almacenamiento en PostgreSQL) |
 | Patrón de aplicación | CQRS vía MediatR, validación de comandos con FluentValidation |
 | LLM | API de Anthropic (Claude) |
-| Notificaciones | Telegram Bot API, previsualización de imagen con SixLabors.ImageSharp |
+| Notificaciones | Telegram Bot API, con prompt de imagen generado por el LLM |
 | Logging | Serilog (consola + fichero con rotación en el Worker) |
 | Contenedores | Docker multi-stage, Docker Compose |
 | Tests | xUnit, FluentAssertions, Moq, Testcontainers (PostgreSQL real), WireMock.Net |
@@ -234,8 +241,8 @@ Infrastructure).
   activa.
 - Revisor LLM (Capa 2) ya implementado, disponible tras un feature flag.
 - Registro append-only de cada ejecución (`GenerationRun`) para trazabilidad y auditoría.
-- Notificación del borrador vía Telegram con imagen de previsualización — nunca publicación
-  automática.
+- Notificación del borrador vía Telegram, incluido un prompt de imagen listo para copiar en un
+  generador de imágenes por IA — nunca publicación automática.
 - Programación diaria a las 08:00 Europe/Madrid, segura frente a cambios de horario (Hangfire +
   Cronos).
 - Endpoints mínimos de observabilidad en la Api (`/health`, `/generation-runs`).

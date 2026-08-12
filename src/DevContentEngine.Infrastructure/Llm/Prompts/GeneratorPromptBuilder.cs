@@ -30,13 +30,14 @@ internal static class GeneratorPromptBuilder
             - Hashtags: entre 3 y 5, mezclando tecnologías concretas que aparezcan en los datos del payload con #OpenToWork cuando el contexto lo justifique. Prohibidos los hashtags genéricos de relleno sin relación directa con los datos (por ejemplo "#motivation", "#innovation", "#tech", "#programming").
 
             Formato de salida:
-            - Responde exclusivamente con un objeto JSON con las claves: hook, cuerpo, conclusion, cta, hashtags, fuentes.
+            - Responde exclusivamente con un objeto JSON con las claves: hook, cuerpo, conclusion, cta, hashtags, fuentes, diagrama.
               - "hook": primera línea con la tensión o contraste descrito arriba.
               - "cuerpo": el desarrollo principal, en bullets 🔹 o en texto corrido según la regla de estructura.
               - "conclusion": el cierre reflexivo descrito arriba.
               - "cta": llamada a la acción doble descrita arriba (puede ser null solo si no cabe dentro del límite de caracteres).
               - "hashtags": lista de 3 a 5 hashtags relevantes.
               - "fuentes": lista de referencias (URLs o identificadores) a los datos reales usados; nunca vacía.
+              - "diagrama": una descripción breve EN INGLÉS (2 a 4 frases) de qué debería mostrar visualmente un diagrama de arquitectura que acompañe a este post, basada ÚNICAMENTE en las tecnologías, componentes y flujo mencionados en "cuerpo" y "conclusion". Nunca inventes componentes, servicios ni tecnologías que no aparezcan en el texto real del post. Nunca vacío.
             - Límite estricto e innegociable: la longitud total del texto (hook + cuerpo + conclusion + cta, sumando caracteres) NUNCA puede superar los 1400 caracteres ni bajar de 900. Un borrador que se pase de 1400 caracteres será rechazado automáticamente, sin excepción.
             - Si la actividad incluye muchos commits, issues o pull requests, NO los listes todos: elige los 2-3 más relevantes o representativos y resume el resto en una sola frase. Prioriza siempre quedarte corto de caracteres antes que exceder el límite.
             - Antes de responder, cuenta mentalmente los caracteres de hook + cuerpo + conclusion + cta y recorta el texto si se acerca a 1400.
@@ -69,13 +70,14 @@ internal static class GeneratorPromptBuilder
             - Hashtags: entre 3 y 5, mezclando tecnologías concretas que aparezcan en los datos del payload con #OpenToWork cuando el contexto lo justifique. Prohibidos los hashtags genéricos de relleno sin relación directa con los datos.
 
             Formato de salida:
-            - Responde exclusivamente con un objeto JSON con las claves: hook, cuerpo, conclusion, cta, hashtags, fuentes.
+            - Responde exclusivamente con un objeto JSON con las claves: hook, cuerpo, conclusion, cta, hashtags, fuentes, diagrama.
               - "hook": primera línea con la tensión o contraste descrito arriba.
               - "cuerpo": el desarrollo principal, en bullets 🔹 o en texto corrido según la regla de estructura.
               - "conclusion": el cierre reflexivo descrito arriba.
               - "cta": llamada a la acción doble descrita arriba (puede ser null solo si no cabe dentro del límite de caracteres).
               - "hashtags": lista de 3 a 5 hashtags relevantes.
               - "fuentes": lista de referencias a los datos reales usados; nunca vacía. Debe incluir SIEMPRE, sin excepción, cada URL presente en "enlaces" tal cual aparece ahí — no la parafrasees ni la sustituyas por una descripción del contenido. Puedes añadir además otras referencias (por ejemplo, qué sección del README o qué campo del payload usaste), pero la URL de "enlaces" es obligatoria en "fuentes".
+              - "diagrama": una descripción breve EN INGLÉS (2 a 4 frases) de qué debería mostrar visualmente un diagrama de arquitectura que acompañe a este post, basada ÚNICAMENTE en el repositorio, tecnologías, README o estructura de carpetas del payload y en lo que digas en "cuerpo". Nunca inventes componentes, servicios ni tecnologías que no aparezcan en el payload o en el texto real del post. Nunca vacío.
             - Límite estricto e innegociable: la longitud total del texto (hook + cuerpo + conclusion + cta, sumando caracteres) NUNCA puede superar los 1400 caracteres ni bajar de 900. Un borrador que se pase de 1400 caracteres será rechazado automáticamente, sin excepción.
             - Antes de responder, cuenta mentalmente los caracteres de hook + cuerpo + conclusion + cta y recorta el texto si se acerca a 1400.
             """;

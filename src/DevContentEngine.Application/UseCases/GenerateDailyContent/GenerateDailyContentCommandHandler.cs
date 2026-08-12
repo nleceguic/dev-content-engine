@@ -244,6 +244,7 @@ public sealed class GenerateDailyContentCommandHandler : IRequestHandler<Generat
                 generationResult.Cta,
                 generationResult.Hashtags,
                 generationResult.Sources,
+                generationResult.ImagePrompt,
                 contentIdea.Origin,
                 generationResult.PromptVersionId,
                 startedAt);

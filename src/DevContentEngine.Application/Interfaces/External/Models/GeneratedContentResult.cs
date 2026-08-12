@@ -7,4 +7,5 @@ public sealed record GeneratedContentResult(
     string? Cta,
     IReadOnlyCollection<string> Hashtags,
     IReadOnlyCollection<string> Sources,
+    string ImagePrompt,
     Guid PromptVersionId);

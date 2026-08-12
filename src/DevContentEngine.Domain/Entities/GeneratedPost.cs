@@ -16,6 +16,7 @@ public sealed class GeneratedPost : Entity
     public string? Cta { get; private set; }
     public IReadOnlyCollection<string> Hashtags => _hashtags.AsReadOnly();
     public IReadOnlyCollection<string> Sources => _sources.AsReadOnly();
+    public string ImagePrompt { get; private set; } = string.Empty;
     public GeneratedPostStatus Status { get; private set; }
     public ContentOrigin Origin { get; }
     public Guid PromptVersionId { get; }
@@ -35,6 +36,7 @@ public sealed class GeneratedPost : Entity
         string? cta,
         IEnumerable<string> hashtags,
         IEnumerable<string> sources,
+        string imagePrompt,
         ContentOrigin origin,
         Guid promptVersionId,
         DateTime createdAt)
@@ -51,6 +53,9 @@ public sealed class GeneratedPost : Entity
 
         if (string.IsNullOrWhiteSpace(conclusion))
             throw new ArgumentException("Conclusion cannot be empty.", nameof(conclusion));
+
+        if (string.IsNullOrWhiteSpace(imagePrompt))
+            throw new ArgumentException("ImagePrompt cannot be empty.", nameof(imagePrompt));
 
         if (!Enum.IsDefined(origin))
             throw new ArgumentOutOfRangeException(nameof(origin), origin, "Unknown content origin.");
@@ -70,6 +75,7 @@ public sealed class GeneratedPost : Entity
         Cta = string.IsNullOrWhiteSpace(cta) ? null : cta.Trim();
         _hashtags = hashtags?.Where(hashtag => !string.IsNullOrWhiteSpace(hashtag)).ToList() ?? [];
         _sources = sourceList;
+        ImagePrompt = imagePrompt.Trim();
         Status = GeneratedPostStatus.Draft;
         Origin = origin;
         PromptVersionId = promptVersionId;

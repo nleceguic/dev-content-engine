@@ -63,6 +63,7 @@ public sealed class DraftReadyEventHandler : INotificationHandler<DomainEventNot
             post.Body,
             post.Conclusion,
             post.Cta,
+            post.ImagePrompt,
             _dateTimeProvider.UtcNow);
 
         try

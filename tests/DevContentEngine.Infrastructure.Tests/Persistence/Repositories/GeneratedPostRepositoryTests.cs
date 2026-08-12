@@ -43,6 +43,7 @@ public class GeneratedPostRepositoryTests : IAsyncLifetime
             "Cta",
             ["#dotnet"],
             ["https://github.com/owner/repo/commit/abc"],
+            "Dark navy background with glowing architecture nodes representing the pipeline.",
             ContentOrigin.GitHub,
             prompt.Id,
             createdAt);
@@ -81,6 +82,7 @@ public class GeneratedPostRepositoryTests : IAsyncLifetime
             "Cta",
             ["#dotnet"],
             ["https://github.com/owner/repo"],
+            "Dark navy background with glowing architecture nodes representing the repository.",
             ContentOrigin.RepoHighlight,
             prompt.Id,
             createdAt);

@@ -38,6 +38,10 @@ public sealed class GeneratedPostConfiguration : EntityConfigurationBase<Generat
             .UsePropertyAccessMode(PropertyAccessMode.Field)
             .IsRequired();
 
+        builder.Property(post => post.ImagePrompt)
+            .IsRequired()
+            .HasColumnType("text");
+
         builder.Property(post => post.Status)
             .IsRequired()
             .HasConversion<string>()

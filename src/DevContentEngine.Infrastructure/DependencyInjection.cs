@@ -86,7 +86,6 @@ public static class DependencyInjection
         services.AddScoped<ITrendSource, NullTrendSource>();
 
         services.Configure<TelegramOptions>(configuration.GetSection(TelegramOptions.SectionName));
-        services.AddSingleton<PostPreviewImageGenerator>();
 
         services.AddHttpClient<INotifier, TelegramNotifier>((serviceProvider, client) =>
         {

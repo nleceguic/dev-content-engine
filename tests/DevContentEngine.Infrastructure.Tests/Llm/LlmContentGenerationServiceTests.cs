@@ -80,11 +80,15 @@ public class LlmContentGenerationServiceTests
         const string cta = "¿Qué opinas del enfoque?";
         var body = new string('a', Math.Max(1, 1000 - hook.Length - conclusion.Length - cta.Length));
 
-        return new GeneratorResponsePayload(hook, body, conclusion, cta, ["#dotnet", "#postgres"], [source]);
+        return new GeneratorResponsePayload(
+            hook, body, conclusion, cta, ["#dotnet", "#postgres"], [source],
+            "Dark navy background with glowing nodes for the daily content pipeline.");
     }
 
     private static GeneratorResponsePayload TooShortDraft() =>
-        new("Short hook.", "Short body.", "Short conclusion.", null, ["#dotnet"], ["sha-1"]);
+        new(
+            "Short hook.", "Short body.", "Short conclusion.", null, ["#dotnet"], ["sha-1"],
+            "Dark navy background with glowing nodes.");
 
     private void SetupGenerator(params GeneratorResponsePayload[] responsesInOrder)
     {
@@ -142,6 +146,21 @@ public class LlmContentGenerationServiceTests
             provider => provider.GenerateStructuredAsync<ReviewerResponsePayload>(
                 It.IsAny<string>(), It.IsAny<object>(), It.IsAny<LlmGenerationOptions>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_builds_an_ImagePrompt_from_the_repository_technology_and_diagram_description()
+    {
+        SetupGenerator(ValidDraft());
+
+        var service = CreateService(enableReviewer: false);
+
+        var result = await service.GenerateAsync(CreateRequest());
+
+        result.Should().NotBeNull();
+        result!.ImagePrompt.Should().Contain("nleceguic/dev-content-engine");
+        result.ImagePrompt.Should().Contain("C#");
+        result.ImagePrompt.Should().Contain("Dark navy background with glowing nodes for the daily content pipeline.");
     }
 
     [Fact]

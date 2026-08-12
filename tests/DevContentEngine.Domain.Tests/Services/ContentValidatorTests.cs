@@ -11,7 +11,8 @@ public class ContentValidatorTests
     private static DraftContent Draft(
         int totalLength = 1000,
         IReadOnlyCollection<string>? hashtags = null,
-        IReadOnlyCollection<string>? sources = null)
+        IReadOnlyCollection<string>? sources = null,
+        string? diagrama = null)
     {
         const string hook = "Conecté el pipeline diario con GitHub y Postgres esta semana.";
         const string conclusion = "Fue un buen ejercicio de diseño en capas y trazabilidad.";
@@ -25,7 +26,8 @@ public class ContentValidatorTests
             conclusion,
             cta,
             hashtags ?? ["#dotnet", "#postgresql"],
-            sources ?? ["https://github.com/owner/repo/commit/abc123"]);
+            sources ?? ["https://github.com/owner/repo/commit/abc123"],
+            diagrama ?? "PostgreSQL database connected to a .NET pipeline.");
     }
 
     [Fact]
@@ -197,6 +199,27 @@ public class ContentValidatorTests
             Draft(sources: ["https://github.com/nleceguic/rush-order"]), ContentOrigin.RepoHighlight, [], ReferenceDate);
 
         result.FailedRules.Should().NotContain(rule => rule.Contains("valid URL"));
+    }
+
+    [Fact]
+    public void Validate_fails_when_the_diagram_description_is_empty()
+    {
+        var validator = new ContentValidator();
+
+        var result = validator.Validate(Draft(diagrama: ""), ContentOrigin.GitHub, [], ReferenceDate);
+
+        result.IsValid.Should().BeFalse();
+        result.FailedRules.Should().Contain(rule => rule.Contains("non-empty diagram description"));
+    }
+
+    [Fact]
+    public void Validate_passes_when_the_diagram_description_is_present()
+    {
+        var validator = new ContentValidator();
+
+        var result = validator.Validate(Draft(), ContentOrigin.GitHub, [], ReferenceDate);
+
+        result.FailedRules.Should().NotContain(rule => rule.Contains("diagram description"));
     }
 
     [Fact]

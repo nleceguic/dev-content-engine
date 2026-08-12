@@ -17,7 +17,7 @@ public class TelegramNotifierTests
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://api.telegram.org/") };
         var options = Options.Create(new TelegramOptions { BotToken = "test-token", ChatId = "12345" });
 
-        return new TelegramNotifier(httpClient, options, new PostPreviewImageGenerator(), new InMemoryLogger<TelegramNotifier>());
+        return new TelegramNotifier(httpClient, options, new InMemoryLogger<TelegramNotifier>());
     }
 
     private static HttpResponseMessage OkResponse() =>
@@ -30,7 +30,8 @@ public class TelegramNotifierTests
         Guid? id = null,
         string body = "Cuerpo del post con el detalle de lo que hice.",
         string? conclusion = "Fue un buen ejercicio de diseño en capas.",
-        string? cta = "¿Qué opinas?") =>
+        string? cta = "¿Qué opinas?",
+        string imagePrompt = "Dark navy background with glowing architecture nodes.") =>
         new(
             id ?? Guid.NewGuid(),
             "Pipeline de contenido diario",
@@ -40,6 +41,7 @@ public class TelegramNotifierTests
             body,
             conclusion ?? string.Empty,
             cta,
+            imagePrompt,
             GeneratedAt);
 
     [Fact]
@@ -48,7 +50,7 @@ public class TelegramNotifierTests
         var handler = new FakeHttpMessageHandler(OkResponse);
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://api.telegram.org/") };
         var options = Options.Create(new TelegramOptions { BotToken = "123456:AAEtestSecretValue", ChatId = "12345" });
-        var notifier = new TelegramNotifier(httpClient, options, new PostPreviewImageGenerator(), new InMemoryLogger<TelegramNotifier>());
+        var notifier = new TelegramNotifier(httpClient, options, new InMemoryLogger<TelegramNotifier>());
 
         await notifier.NotifyPipelineFailedAsync("GitHub API is unavailable");
 
@@ -86,43 +88,37 @@ public class TelegramNotifierTests
     }
 
     [Fact]
-    public async Task NotifyDraftReadyAsync_calls_sendPhoto_not_sendMessage_with_a_multipart_image_attachment()
-    {
-        var handler = new FakeHttpMessageHandler(OkResponse);
-        var notifier = CreateNotifier(handler);
-        var postId = Guid.NewGuid();
-
-        await notifier.NotifyDraftReadyAsync(CreateNotification(postId));
-
-        handler.CallCount.Should().Be(1);
-        handler.RequestUris[0]!.ToString().Should().EndWith("bottest-token/sendPhoto");
-        handler.RequestUris[0]!.ToString().Should().NotContain("sendMessage");
-        handler.ContentTypes[0].Should().Be("multipart/form-data");
-
-        var body = handler.RequestBodies[0];
-        body.Should().Contain("name=chat_id");
-        body.Should().Contain("name=caption");
-        body.Should().Contain($"name=photo; filename=post-preview-{postId}.png");
-        body.Should().Contain("Content-Type: image/png");
-        body.Should().Contain("PNG");
-    }
-
-    [Fact]
-    public async Task NotifyDraftReadyAsync_caption_follows_the_blueprint_format()
+    public async Task NotifyDraftReadyAsync_sends_via_sendMessage_not_sendPhoto()
     {
         var handler = new FakeHttpMessageHandler(OkResponse);
         var notifier = CreateNotifier(handler);
 
         await notifier.NotifyDraftReadyAsync(CreateNotification());
 
-        var body = handler.RequestBodies[0];
+        handler.CallCount.Should().Be(1);
+        handler.RequestUris[0]!.ToString().Should().EndWith("bottest-token/sendMessage");
+        handler.RequestUris[0]!.ToString().Should().NotContain("sendPhoto");
+        handler.ContentTypes[0].Should().Be("application/json");
+    }
 
-        body.Should().Contain("📝 Post preparado — 08:00");
-        body.Should().Contain("Tema: Pipeline de contenido diario");
-        body.Should().Contain("Origen: GitHub/dev-content-engine");
-        body.Should().Contain("Motivo: Score de actividad alto por varios commits relevantes.");
-        body.Should().Contain("Terminé de conectar el pipeline con Telegram.");
-        body.Should().Contain("Cuerpo del post con el detalle de lo que hice.");
+    [Fact]
+    public async Task NotifyDraftReadyAsync_message_follows_the_blueprint_format_and_includes_the_image_prompt_block()
+    {
+        var handler = new FakeHttpMessageHandler(OkResponse);
+        var notifier = CreateNotifier(handler);
+
+        await notifier.NotifyDraftReadyAsync(CreateNotification());
+
+        var text = ExtractJsonTextField(handler.RequestBodies[0]);
+
+        text.Should().Contain("📝 Post preparado — 08:00");
+        text.Should().Contain("Tema: Pipeline de contenido diario");
+        text.Should().Contain("Origen: GitHub/dev-content-engine");
+        text.Should().Contain("Motivo: Score de actividad alto por varios commits relevantes.");
+        text.Should().Contain("Terminé de conectar el pipeline con Telegram.");
+        text.Should().Contain("Cuerpo del post con el detalle de lo que hice.");
+        text.Should().Contain("🎨 Prompt de imagen sugerido (cópialo en tu generador de imágenes):");
+        text.Should().Contain("```\nDark navy background with glowing architecture nodes.\n```");
     }
 
     [Fact]
@@ -140,7 +136,9 @@ public class TelegramNotifierTests
             "Terminé de conectar el pipeline con Telegram.\n\n" +
             "Cuerpo del post con el detalle de lo que hice.\n\n" +
             "Fue un buen ejercicio de diseño en capas.\n\n" +
-            "¿Qué opinas?";
+            "¿Qué opinas?\n\n" +
+            "🎨 Prompt de imagen sugerido (cópialo en tu generador de imágenes):\n\n" +
+            "```\nDark navy background with glowing architecture nodes.\n```";
 
         caption.Should().Be(expected);
     }
@@ -153,30 +151,31 @@ public class TelegramNotifierTests
         var caption = TelegramNotifier.BuildDraftReadyCaption(notification);
 
         caption.Should().NotContain("¿Qué opinas?");
-        caption.Should().EndWith("Fue un buen ejercicio de diseño en capas.");
+        caption.Should().Contain("Fue un buen ejercicio de diseño en capas.\n\n🎨 Prompt de imagen");
     }
 
     [Fact]
-    public void BuildDraftReadyCaption_truncates_and_points_to_the_drafts_link_when_the_post_does_not_fit()
+    public void BuildDraftReadyCaption_truncates_the_post_but_keeps_the_full_image_prompt_when_it_does_not_fit()
     {
         var postId = Guid.NewGuid();
-        var notification = CreateNotification(postId, body: new string('a', 2000));
+        var notification = CreateNotification(postId, body: new string('a', 5000));
 
         var caption = TelegramNotifier.BuildDraftReadyCaption(notification);
 
-        caption.Length.Should().BeLessThanOrEqualTo(1024);
+        caption.Length.Should().BeLessThanOrEqualTo(4096);
         caption.Should().Contain($"borrador completo disponible en /drafts/{postId}");
         caption.Should().StartWith("📝 Post preparado — 08:00");
         caption.Should().Contain("Terminé de conectar el pipeline con Telegram.");
+        caption.Should().Contain("```\nDark navy background with glowing architecture nodes.\n```");
     }
 
     [Fact]
-    public void BuildDraftReadyCaption_never_exceeds_the_Telegram_caption_limit_even_with_an_extremely_long_hook()
+    public void BuildDraftReadyCaption_never_exceeds_the_Telegram_message_limit_even_with_an_extremely_long_hook_and_image_prompt()
     {
-        var notification = CreateNotification() with { Hook = new string('h', 5000) };
+        var notification = CreateNotification(imagePrompt: new string('p', 3000)) with { Hook = new string('h', 5000) };
 
         var caption = TelegramNotifier.BuildDraftReadyCaption(notification);
 
-        caption.Length.Should().BeLessThanOrEqualTo(1024);
+        caption.Length.Should().BeLessThanOrEqualTo(4096);
     }
 }

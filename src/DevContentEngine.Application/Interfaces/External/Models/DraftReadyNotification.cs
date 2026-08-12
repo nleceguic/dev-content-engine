@@ -9,4 +9,5 @@ public sealed record DraftReadyNotification(
     string Body,
     string Conclusion,
     string? Cta,
+    string ImagePrompt,
     DateTime GeneratedAt);

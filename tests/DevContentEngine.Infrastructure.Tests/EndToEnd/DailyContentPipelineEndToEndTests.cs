@@ -76,7 +76,9 @@ public class DailyContentPipelineEndToEndTests : IAsyncLifetime
         const string conclusion = "Fue un buen ejercicio de diseño en capas y trazabilidad.";
         const string cta = "¿Qué opinas del enfoque?";
         var body = new string('a', Math.Max(1, 1000 - hook.Length - conclusion.Length - cta.Length));
-        var validDraft = new GeneratorResponsePayload(hook, body, conclusion, cta, ["#dotnet", "#postgres"], ["sha-0"]);
+        var validDraft = new GeneratorResponsePayload(
+            hook, body, conclusion, cta, ["#dotnet", "#postgres"], ["sha-0"],
+            "Dark navy background with glowing nodes for the GitHub-to-Postgres pipeline.");
 
         var llmProvider = new Mock<ILlmProvider>();
         llmProvider
@@ -137,6 +139,8 @@ public class DailyContentPipelineEndToEndTests : IAsyncLifetime
         persistedPost.Hashtags.Should().BeEquivalentTo(["#dotnet", "#postgres"]);
         persistedPost.Sources.Should().NotBeEmpty();
         persistedPost.Origin.Should().Be(ContentOrigin.GitHub);
+        persistedPost.ImagePrompt.Should().NotBeNullOrWhiteSpace();
+        persistedPost.ImagePrompt.Should().Contain("GitHub-to-Postgres pipeline");
 
         var persistedRun = await readContext.GenerationRuns.SingleAsync(run => run.Id == result.GenerationRunId);
         persistedRun.Status.Should().Be(GenerationRunStatus.Success);
@@ -184,7 +188,8 @@ public class DailyContentPipelineEndToEndTests : IAsyncLifetime
         const string cta = "¿Cómo lo harías tú? Y si buscas un perfil así, hablemos.";
         var body = new string('a', Math.Max(1, 1000 - hook.Length - conclusion.Length - cta.Length));
         var validDraft = new GeneratorResponsePayload(
-            hook, body, conclusion, cta, ["#dotnet", "#cleanarchitecture"], ["https://github.com/nleceguic/rush-order"]);
+            hook, body, conclusion, cta, ["#dotnet", "#cleanarchitecture"], ["https://github.com/nleceguic/rush-order"],
+            "Dark navy background with glowing nodes representing separated bounded contexts.");
 
         var llmProvider = new Mock<ILlmProvider>();
         llmProvider
@@ -252,6 +257,8 @@ public class DailyContentPipelineEndToEndTests : IAsyncLifetime
         persistedPost.Status.Should().Be(GeneratedPostStatus.Draft);
         persistedPost.Origin.Should().Be(ContentOrigin.RepoHighlight);
         persistedPost.Sources.Should().Contain("https://github.com/nleceguic/rush-order");
+        persistedPost.ImagePrompt.Should().Contain("separated bounded contexts");
+        persistedPost.ImagePrompt.Should().Contain("nleceguic/rush-order");
 
         var persistedIdea = await readContext.ContentIdeas.SingleAsync(idea => idea.Id == persistedPost.ContentIdeaId);
         persistedIdea.Origin.Should().Be(ContentOrigin.RepoHighlight);

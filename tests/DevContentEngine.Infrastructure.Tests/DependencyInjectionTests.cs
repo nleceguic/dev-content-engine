@@ -3,7 +3,6 @@ using DevContentEngine.Application.Interfaces.External;
 using DevContentEngine.Application.Interfaces.Persistence;
 using DevContentEngine.Domain.Services;
 using DevContentEngine.Infrastructure.Persistence;
-using DevContentEngine.Infrastructure.Telegram;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,7 +57,6 @@ public class DependencyInjectionTests
         scope.ServiceProvider.GetRequiredService<ActivityScorer>().Should().NotBeNull();
         scope.ServiceProvider.GetRequiredService<TopicRepetitionDetector>().Should().NotBeNull();
         scope.ServiceProvider.GetRequiredService<IContentGenerationService>().Should().NotBeNull();
-        scope.ServiceProvider.GetRequiredService<PostPreviewImageGenerator>().Should().NotBeNull();
         scope.ServiceProvider.GetRequiredService<INotifier>().Should().NotBeNull();
     }
 

@@ -6,4 +6,5 @@ public sealed record DraftContent(
     string Conclusion,
     string? Cta,
     IReadOnlyCollection<string> Hashtags,
-    IReadOnlyCollection<string> Sources);
+    IReadOnlyCollection<string> Sources,
+    string Diagrama);

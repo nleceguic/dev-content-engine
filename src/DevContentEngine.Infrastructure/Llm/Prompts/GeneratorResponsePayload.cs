@@ -8,4 +8,5 @@ internal sealed record GeneratorResponsePayload(
     [property: JsonPropertyName("conclusion")] string Conclusion,
     [property: JsonPropertyName("cta")] string? Cta,
     [property: JsonPropertyName("hashtags")] IReadOnlyCollection<string> Hashtags,
-    [property: JsonPropertyName("fuentes")] IReadOnlyCollection<string> Fuentes);
+    [property: JsonPropertyName("fuentes")] IReadOnlyCollection<string> Fuentes,
+    [property: JsonPropertyName("diagrama")] string Diagrama);

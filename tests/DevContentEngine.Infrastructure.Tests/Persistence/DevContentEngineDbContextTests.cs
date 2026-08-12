@@ -86,6 +86,7 @@ public class DevContentEngineDbContextTests : IAsyncLifetime
             "Cta",
             ["#dotnet", "#postgres"],
             ["https://github.com/owner/repo/commit/abc"],
+            "Dark navy background with glowing architecture nodes.",
             ContentOrigin.GitHub,
             promptVersion.Id,
             DateTime.UtcNow);

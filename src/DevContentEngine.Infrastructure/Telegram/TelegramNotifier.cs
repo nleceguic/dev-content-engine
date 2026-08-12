@@ -8,22 +8,16 @@ namespace DevContentEngine.Infrastructure.Telegram;
 
 public sealed class TelegramNotifier : INotifier
 {
-    private const int CaptionMaxLength = 1024;
+    private const int MessageMaxLength = 4096;
 
     private readonly HttpClient _httpClient;
     private readonly TelegramOptions _options;
-    private readonly PostPreviewImageGenerator _imageGenerator;
     private readonly ILogger<TelegramNotifier> _logger;
 
-    public TelegramNotifier(
-        HttpClient httpClient,
-        IOptions<TelegramOptions> options,
-        PostPreviewImageGenerator imageGenerator,
-        ILogger<TelegramNotifier> logger)
+    public TelegramNotifier(HttpClient httpClient, IOptions<TelegramOptions> options, ILogger<TelegramNotifier> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
-        _imageGenerator = imageGenerator;
         _logger = logger;
     }
 
@@ -31,25 +25,9 @@ public sealed class TelegramNotifier : INotifier
     {
         ArgumentNullException.ThrowIfNull(notification);
 
-        var caption = BuildDraftReadyCaption(notification);
+        var message = BuildDraftReadyCaption(notification);
 
-        using var imageStream = _imageGenerator.Generate(
-            notification.Topic,
-            notification.Origin,
-            notification.Hook,
-            notification.GeneratedAt);
-
-        using var content = new MultipartFormDataContent
-        {
-            { new StringContent(_options.ChatId), "chat_id" },
-            { new StringContent(caption), "caption" }
-        };
-
-        using var photoContent = new StreamContent(imageStream);
-        photoContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
-        content.Add(photoContent, "photo", $"post-preview-{notification.GeneratedPostId}.png");
-
-        await SendAsync("sendPhoto", content, cancellationToken);
+        await SendTextAsync(message, cancellationToken);
     }
 
     public async Task NotifyPipelineFailedAsync(string reason, CancellationToken cancellationToken = default)
@@ -128,26 +106,31 @@ public sealed class TelegramNotifier : INotifier
             "\n\n",
             new[] { notification.Body, notification.Conclusion, notification.Cta }.Where(text => !string.IsNullOrWhiteSpace(text)));
 
-        var prefix = $"{header}{notification.Hook}\n\n";
-        var fullCaption = $"{prefix}{rest}";
+        var imagePromptBlock =
+            "\n\n🎨 Prompt de imagen sugerido (cópialo en tu generador de imágenes):\n\n" +
+            $"```\n{notification.ImagePrompt}\n```";
 
-        if (fullCaption.Length <= CaptionMaxLength)
+        var prefix = $"{header}{notification.Hook}\n\n";
+        var fullMessage = $"{prefix}{rest}{imagePromptBlock}";
+
+        if (fullMessage.Length <= MessageMaxLength)
         {
-            return fullCaption;
+            return fullMessage;
         }
 
         var notice = $"\n\n… borrador completo disponible en /drafts/{notification.GeneratedPostId}";
-        var availableForRest = CaptionMaxLength - prefix.Length - notice.Length;
+        var availableForRest = MessageMaxLength - prefix.Length - notice.Length - imagePromptBlock.Length;
 
         if (availableForRest > 0)
         {
             var truncatedRest = rest.Length > availableForRest ? rest[..availableForRest] : rest;
-            return $"{prefix}{truncatedRest}{notice}";
+            return $"{prefix}{truncatedRest}{notice}{imagePromptBlock}";
         }
 
-        var hardLimit = Math.Max(0, CaptionMaxLength - notice.Length);
-        var truncatedFull = fullCaption.Length > hardLimit ? fullCaption[..hardLimit] : fullCaption;
+        var hardLimit = Math.Max(0, MessageMaxLength - notice.Length - imagePromptBlock.Length);
+        var fullPost = $"{prefix}{rest}";
+        var truncatedPost = fullPost.Length > hardLimit ? fullPost[..hardLimit] : fullPost;
 
-        return $"{truncatedFull}{notice}";
+        return $"{truncatedPost}{notice}{imagePromptBlock}";
     }
 }

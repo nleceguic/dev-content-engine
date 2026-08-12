@@ -58,7 +58,8 @@ public class GenerateDailyContentCommandHandlerTests
 
         _contentGenerationService
             .Setup(service => service.GenerateAsync(It.IsAny<ContentGenerationRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GeneratedContentResult("Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], GeneratorPromptVersionId));
+            .ReturnsAsync(new GeneratedContentResult(
+                "Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], "Image prompt", GeneratorPromptVersionId));
     }
 
     private GenerateDailyContentCommandHandler CreateHandler()
@@ -130,7 +131,8 @@ public class GenerateDailyContentCommandHandlerTests
         _contentGenerationService
             .Setup(service => service.GenerateAsync(It.IsAny<ContentGenerationRequest>(), It.IsAny<CancellationToken>()))
             .Callback<ContentGenerationRequest, CancellationToken>((req, _) => capturedRequest = req)
-            .ReturnsAsync(new GeneratedContentResult("Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], GeneratorPromptVersionId));
+            .ReturnsAsync(new GeneratedContentResult(
+                "Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], "Image prompt", GeneratorPromptVersionId));
 
         var handler = CreateHandler();
 
@@ -222,7 +224,8 @@ public class GenerateDailyContentCommandHandlerTests
         _contentGenerationService
             .Setup(service => service.GenerateAsync(It.IsAny<ContentGenerationRequest>(), It.IsAny<CancellationToken>()))
             .Callback<ContentGenerationRequest, CancellationToken>((req, _) => capturedRequest = req)
-            .ReturnsAsync(new GeneratedContentResult("Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], GeneratorPromptVersionId));
+            .ReturnsAsync(new GeneratedContentResult(
+                "Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], "Image prompt", GeneratorPromptVersionId));
 
         var handler = CreateHandler();
 
@@ -323,7 +326,8 @@ public class GenerateDailyContentCommandHandlerTests
         _contentGenerationService
             .Setup(service => service.GenerateAsync(It.IsAny<ContentGenerationRequest>(), It.IsAny<CancellationToken>()))
             .Callback<ContentGenerationRequest, CancellationToken>((req, _) => capturedRequest = req)
-            .ReturnsAsync(new GeneratedContentResult("Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], GeneratorPromptVersionId));
+            .ReturnsAsync(new GeneratedContentResult(
+                "Hook", "Body", "Conclusion", "Cta", ["#dotnet"], ["source"], "Image prompt", GeneratorPromptVersionId));
 
         var handler = CreateHandler();
 

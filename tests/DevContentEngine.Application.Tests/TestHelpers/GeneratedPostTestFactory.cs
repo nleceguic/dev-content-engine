@@ -18,6 +18,7 @@ internal static class GeneratedPostTestFactory
             "Cta",
             ["#dotnet"],
             ["https://github.com/owner/repo/commit/abc123"],
+            "Dark navy background with glowing architecture nodes representing the pipeline.",
             ContentOrigin.GitHub,
             Guid.NewGuid(),
             timestamp);

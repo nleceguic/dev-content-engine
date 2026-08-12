@@ -55,11 +55,13 @@ public sealed class ContentValidator
         var body = draft.Body ?? string.Empty;
         var conclusion = draft.Conclusion ?? string.Empty;
         var cta = draft.Cta ?? string.Empty;
+        var diagrama = draft.Diagrama ?? string.Empty;
 
         ValidateLength(hook, body, conclusion, cta, failedRules);
         ValidateHashtags(draft.Hashtags, failedRules);
         ValidateBannedPhrases(hook, body, conclusion, cta, failedRules);
         ValidateSources(draft.Sources, origin, failedRules);
+        ValidateDiagram(diagrama, failedRules);
         ValidateTopicRepetition(draft.Hashtags, recentPosts, referenceDate, warnings);
 
         return new ValidationResult(failedRules, warnings);
@@ -122,6 +124,14 @@ public sealed class ContentValidator
         if (origin == ContentOrigin.RepoHighlight && !sources.Any(IsValidHttpUrl))
         {
             failedRules.Add("A repo-highlight-originated post must include at least one source with a valid URL.");
+        }
+    }
+
+    private static void ValidateDiagram(string diagram, List<string> failedRules)
+    {
+        if (string.IsNullOrWhiteSpace(diagram))
+        {
+            failedRules.Add("A generated post must include a non-empty diagram description for its image prompt.");
         }
     }
 

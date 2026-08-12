@@ -27,20 +27,15 @@ RUN dotnet publish src/DevContentEngine.Worker/DevContentEngine.Worker.csproj \
     /p:UseAppHost=false
 
 # ---- Runtime ------------------------------------------------------------------------------------
-# aspnet:9.0-alpine, not the even smaller "chiseled" variant: PostPreviewImageGenerator (ImageSharp)
-# needs a real font installed via apk below, and the chiseled image has no package manager to do that.
+# aspnet:9.0-alpine, not the even smaller "chiseled" variant: tzdata below needs apk, and the
+# chiseled image has no package manager to install it with.
 FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS final
 WORKDIR /app
 
-# fontconfig + DejaVu Sans: PostPreviewImageGenerator renders the Telegram draft-preview image with
-# ImageSharp on every generated draft, which needs at least one of its candidate system fonts (see
-# src/DevContentEngine.Infrastructure/Telegram/PostPreviewImageGenerator.cs) actually installed — the
-# bare alpine base image ships none, and would fail every run with "No usable system font was found".
-#
 # tzdata: Program.cs resolves "Europe/Madrid" via TimeZoneInfo.FindSystemTimeZoneById on startup to
 # schedule the daily job — the bare alpine base image ships no IANA time zone database at all, and
 # without it the Worker crashes on every boot with TimeZoneNotFoundException.
-RUN apk add --no-cache fontconfig ttf-dejavu tzdata
+RUN apk add --no-cache tzdata
 
 ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production

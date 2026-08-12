@@ -116,7 +116,8 @@ public sealed class LlmContentGenerationService : IContentGenerationService
             payload,
             cancellationToken: cancellationToken);
 
-        var draftContent = new DraftContent(draft.Hook, draft.Cuerpo, draft.Conclusion, draft.Cta, draft.Hashtags, draft.Fuentes);
+        var draftContent = new DraftContent(
+            draft.Hook, draft.Cuerpo, draft.Conclusion, draft.Cta, draft.Hashtags, draft.Fuentes, draft.Diagrama);
         var validationResult = _contentValidator.Validate(
             draftContent,
             request.ContentIdea.Origin,
@@ -138,14 +139,14 @@ public sealed class LlmContentGenerationService : IContentGenerationService
 
         if (!_options.EnableReviewer)
         {
-            return (ToResult(draft, generatorPromptVersionId), null);
+            return (ToResult(draft, generatorPromptVersionId, payload, request), null);
         }
 
         var reviewResult = await ReviewAsync(payload, draft, cancellationToken);
 
         if (reviewResult.IsApproved)
         {
-            return (ToResult(draft, generatorPromptVersionId), null);
+            return (ToResult(draft, generatorPromptVersionId, payload, request), null);
         }
 
         var rejectionReason = reviewResult.Notas ?? "El revisor rechazó el borrador sin especificar el motivo.";
@@ -194,6 +195,20 @@ public sealed class LlmContentGenerationService : IContentGenerationService
     private static string BuildCorrectionAddendum(string notes) =>
         $"ATENCIÓN: el intento anterior fue rechazado por el siguiente motivo. Corrígelo en esta respuesta: {notes}";
 
-    private static GeneratedContentResult ToResult(GeneratorResponsePayload draft, Guid promptVersionId) =>
-        new(draft.Hook, draft.Cuerpo, draft.Conclusion, draft.Cta, draft.Hashtags, draft.Fuentes, promptVersionId);
+    private static GeneratedContentResult ToResult(
+        GeneratorResponsePayload draft, Guid promptVersionId, GeneratorPayload payload, ContentGenerationRequest request)
+    {
+        var (title, subtitle) = ResolveImagePromptContext(request, payload);
+        var imagePrompt = ImagePromptGenerator.Build(title, subtitle, draft.Diagrama);
+
+        return new(draft.Hook, draft.Cuerpo, draft.Conclusion, draft.Cta, draft.Hashtags, draft.Fuentes, imagePrompt, promptVersionId);
+    }
+
+    private static (string Title, string Subtitle) ResolveImagePromptContext(ContentGenerationRequest request, GeneratorPayload payload)
+    {
+        var title = payload.Proyecto ?? request.Trend?.Title ?? "Backend Development";
+        var subtitle = payload.Tecnologias.FirstOrDefault() ?? request.Trend?.Source ?? request.ContentIdea.Origin.ToString();
+
+        return (title, subtitle);
+    }
 }
