@@ -15,4 +15,6 @@ public sealed class LlmOptions
     public int MaxOutputTokens { get; set; } = 1024;
 
     public bool EnableReviewer { get; set; } = false;
+
+    public string? ContextoPersonal { get; set; }
 }

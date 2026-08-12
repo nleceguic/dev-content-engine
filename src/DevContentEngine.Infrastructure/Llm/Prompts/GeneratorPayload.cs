@@ -10,5 +10,6 @@ internal sealed record GeneratorPayload(
     [property: JsonPropertyName("problema")] string? Problema,
     [property: JsonPropertyName("solución")] string? Solucion,
     [property: JsonPropertyName("contexto_adicional")] string? ContextoAdicional,
+    [property: JsonPropertyName("contexto_personal")] string? ContextoPersonal,
     [property: JsonPropertyName("enlaces")] IReadOnlyCollection<string> Enlaces,
     [property: JsonPropertyName("temas_recientes_a_evitar")] IReadOnlyCollection<string> TemasRecientesAEvitar);

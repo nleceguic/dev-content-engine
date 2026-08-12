@@ -59,7 +59,8 @@ public sealed class LlmContentGenerationService : IContentGenerationService
             request.Repositories,
             request.Trend,
             request.SourceReferences,
-            request.RecentPosts);
+            request.RecentPosts,
+            _options.ContextoPersonal);
 
         string? correctionNotes = null;
 
