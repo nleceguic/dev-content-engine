@@ -1,0 +1,84 @@
+# Reads variables from a ".env" file next to this one (see .env.example for the full list with
+# documentation). Copy .env.example to .env and fill in real values before running this.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: devcontentengine-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devcontentengine
+
+  devcontentengine-worker:
+    image: ghcr.io/nleceguic/dev-content-engine-worker:latest
+    build:
+      context: .
+      dockerfile: src/DevContentEngine.Worker/Dockerfile
+    container_name: devcontentengine-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: ${ConnectionStrings__Default}
+      GitHub__Token: ${GitHub__Token}
+      GitHub__Username: ${GitHub__Username}
+      Llm__ApiKey: ${Llm__ApiKey}
+      Llm__Model: ${Llm__Model}
+      Telegram__BotToken: ${Telegram__BotToken}
+      Telegram__ChatId: ${Telegram__ChatId}
+      Hangfire__DashboardUsername: ${Hangfire__DashboardUsername}
+      Hangfire__DashboardPassword: ${Hangfire__DashboardPassword}
+    volumes:
+      - worker-logs:/app/logs
+    ports:
+      # Hangfire dashboard (/hangfire). Bound to localhost only — reach it from the server itself
+      # or via an SSH tunnel: ssh -L 8081:localhost:8081 <user>@<server>
+      - "127.0.0.1:8081:8080"
+    networks:
+      - devcontentengine
+
+  devcontentengine-api:
+    image: ghcr.io/nleceguic/dev-content-engine-api:latest
+    build:
+      context: .
+      dockerfile: src/DevContentEngine.Api/Dockerfile
+    container_name: devcontentengine-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: ${ConnectionStrings__Default}
+      GitHub__Token: ${GitHub__Token}
+      Llm__ApiKey: ${Llm__ApiKey}
+    ports:
+      # /health and /generation-runs have no built-in authentication. Bound to localhost only by
+      # default; put a reverse proxy (with auth/TLS) in front of it if it needs to be public.
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - devcontentengine
+
+volumes:
+  postgres-data:
+  worker-logs:
+
+networks:
+  devcontentengine:
+    driver: bridge

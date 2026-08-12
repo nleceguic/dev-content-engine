@@ -1,0 +1,9 @@
+# Automatically merged by "docker compose" when run from the repository root — no extra flags needed.
+# Exists only for local development: the base docker-compose.yml keeps Postgres off any published
+# port (it's only reachable from the other containers), which is the right default for the production
+# deployment target. Publishing it here lets `dotnet ef database update` run from the host against the
+# same database the containers use.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"
