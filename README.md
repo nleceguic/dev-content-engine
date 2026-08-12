@@ -270,3 +270,6 @@ Direcciones posibles, no una promesa de roadmap:
   generador.
 - Proveedor de LLM intercambiable (hoy acoplado a la API de Anthropic).
 - Panel web para revisar y aprobar borradores, como alternativa a Telegram.
+- Conectar `ImagePromptGenerator` directamente a una API de generación de imágenes, para adjuntar la
+  imagen ya generada en la notificación en lugar de solo el prompt de texto. De momento es deliberado
+  no hacerlo: prefiero revisar y generar la imagen yo mismo antes de decidir cuál usar.
