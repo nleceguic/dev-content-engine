@@ -86,13 +86,20 @@ public sealed class ContentValidator
         }
 
         var unknownHashtags = hashtags
-            .Where(tag => !_technologyWhitelist.Contains(tag.TrimStart('#'), StringComparer.OrdinalIgnoreCase))
+            .Where(tag => !MatchesTechnologyWhitelist(tag))
             .ToList();
 
         if (unknownHashtags.Count > 0)
         {
             failedRules.Add($"Hashtags not in the known technology whitelist: {string.Join(", ", unknownHashtags)}.");
         }
+    }
+
+    private bool MatchesTechnologyWhitelist(string tag)
+    {
+        var normalizedTag = tag.TrimStart('#');
+
+        return _technologyWhitelist.Any(entry => normalizedTag.Contains(entry, StringComparison.OrdinalIgnoreCase));
     }
 
     private void ValidateBannedPhrases(string hook, string body, string conclusion, string cta, List<string> failedRules)

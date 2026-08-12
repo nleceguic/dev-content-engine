@@ -10,6 +10,8 @@ public static class DefaultTechnologyHashtagWhitelist
         "opensource", "softwareengineering", "programming", "webdev", "cleanarchitecture",
         "sql", "nosql", "linux", "grpc", "graphql", "rest",
         "llm", "ai", "anthropic", "claude", "ddd", "cqrs", "mediatr", "efcore",
-        "entityframework", "hangfire", "automation", "buildinpublic", "opentowork"
+        "entityframework", "hangfire", "automation", "buildinpublic", "opentowork",
+        "backenddeveloper", "juniordeveloper", "softwarearchitecture", "backendengineering",
+        "saas", "multitenancy", "multitenant"
     ];
 }

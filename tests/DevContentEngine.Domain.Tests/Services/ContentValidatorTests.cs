@@ -101,6 +101,20 @@ public class ContentValidatorTests
         result.FailedRules.Should().Contain(rule => rule.Contains("whitelist") && rule.Contains("#motivation"));
     }
 
+    [Theory]
+    [InlineData("#DotNetCore")]
+    [InlineData("#DotNetDevelopment")]
+    [InlineData("#PostgreSQLMigrations")]
+    [InlineData("#LLMIntegration")]
+    public void Validate_accepts_a_hashtag_that_is_a_compound_variant_of_a_whitelisted_technology(string hashtag)
+    {
+        var validator = new ContentValidator();
+
+        var result = validator.Validate(Draft(hashtags: [hashtag]), ContentOrigin.GitHub, [], ReferenceDate);
+
+        result.FailedRules.Should().NotContain(rule => rule.Contains("whitelist"));
+    }
+
     [Fact]
     public void Validate_matches_whitelist_entries_case_insensitively_and_ignoring_the_hash_prefix()
     {
